@@ -49,7 +49,7 @@ exec_mount() {
 	fi
 
 	# now get the password
-	password=$( security find-generic-password -a $ID -s $password_key -g 2>&1 > /dev/null | awk -F: '$1=="password" {print $2}' | sed 's/ *"\(.*\)"$/\1/' )
+	password=$( security find-generic-password -a $ID -s $password_key -w )
 	if [ $? != 0 -o "$password" == "" ]; then
 		echo "WARNING: No password found for $name - not mounted"
 		return 1
