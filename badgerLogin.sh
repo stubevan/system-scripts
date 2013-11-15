@@ -20,9 +20,16 @@ do
 	fi
 
 	echo "Starting ${APP}"
-	open -g "${APP}"
-	APPNAME=`basename $APP | awk -F. '{print $1}'`
-	osascript -e "tell application \"System Events\" to set visible of application process \"${APPNAME}\" to false"
+	# See if it's an app
+	if [ -d ${APP} ]; 	then
+		open -g "${APP}"
+		APPNAME=`basename $APP | awk -F. '{print $1}'`
+		osascript -e "tell application \"System Events\" to set visible of application process \"${APPNAME}\" to false"
+	else
+		# It's a prog or script so run it - the script has to take care of backgrounding anything
+		$app
+	fi
+
 	sleep 1
 
 done
