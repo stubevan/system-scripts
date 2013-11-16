@@ -49,7 +49,9 @@ exec_mount() {
 	fi
 
 	# now get the password
-	password=$( security find-generic-password -a $ID -s $password_key -w )
+	# Have to use older version as Lion doesnt support -w
+	#password=$( security find-generic-password -a $ID -s $password_key -w )
+	password=$( security find-generic-password -a stu -s $password_key -g 2>&1 > /dev/null | sed 's/^pass.*: "\(.*\)"$/\1/' )
 	if [ $? != 0 -o "$password" == "" ]; then
 		echo "WARNING: No password found for $name - not mounted"
 		return 1
