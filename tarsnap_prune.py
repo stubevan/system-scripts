@@ -38,7 +38,7 @@ def form_prune_list(archive_list,
                     archive_name, months_to_keep, days_to_keep, hours_to_keep, \
                     str(time_now))
 
-    archive_list.sort()
+    archive_list.sort(reverse=True)
 
     for archive_to_check in archive_list :
         
