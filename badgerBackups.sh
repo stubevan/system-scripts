@@ -1,15 +1,46 @@
 #/bin/sh
 
 # This, hopefully, should be the last incarnation of the badgerBackup process!
-# The script has 2 purposes:
+# The script has 3 purposes:
 # 1) Run horcrux and tarsnap backups
 # 2) Pull back the specified syncstatus directory for later validation by
 #    SyncStatus
+# 3) Keep the archives clean
 # The actions are determined by the hostname
+
+DEBUG=1
+
+logger() {
+    echo >&2 `date +%Y%m%d.%H%m%S` "-> $*"
+}
+
+fatal() {
+    logger "FATAL: $*"
+    exit 1
+}
+
+log="/Users/stu/Logs/`date +%Y%m%d`-badgerBackups.log"
+
+# Check we're not aready running
+pidfile=/var/tmp/badgerBackups.pid
+
+if [ -f $pidfile ]; then
+	pid=`cat $pidfile`
+	kill -0 $pid
+	if [ $? == 0 ]; then
+		# backups running elsewhere
+		fatal "$0 already running - $$"
+	fi
+fi
+
+printf "%d" $$ > $pidfile
+
+if [ $DEBUG == 0 ]; then
+	exec >> $log 2>&1
+fi
 
 . $HOME/.bash_profile
 EXEC_NAME=$0
-DEBUG=0
 HOST=$( hostname | cut -d. -f1 )
 TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile /Users/stu/etc/tarsnap.key --cachedir /Users/stu/.tarsnap --print-stats"
 STATS_FILE=/Users/stu/Documents/Geek/backupstats.csv
@@ -19,10 +50,6 @@ usage() {
 	echo "	If no file system specified all entries in $CONFIG_FILE will be processed"
 	echo "	If no no action and no file system specified then mount all"
 	exit 1
-}
-
-logger() {
-    echo >&2 `date +%Y%m%d.%H%m%S` "-> $*"
 }
 
 getAttribute() {
@@ -123,10 +150,11 @@ exludes -> $excludes"
     
     # Run the backup first
     datestamp=$( date +%Y%m%d.%H%S )
-    archive_name="${datestamp}.${archive}_${source_directory}"
+	tarsnap_archive=${archive}.${source_directory}
+    archive_name=${datestamp}.${tarsnap_archive}
     logfile="/Users/stu/Logs/${datestamp}-tarsnap.${source_directory}.log"
-    restore_directory=${HOME}/${source_directory}/${archive_name}/.syncstatus
-    tarsnap_backup="${TARSNAP_ATTRIBUTES} -v -c -f ${archive_name} -C ${HOME} ${exclude_list} ${source_directory} > ${logfile} 2>&1"
+
+    tarsnap_backup="${TARSNAP_ATTRIBUTES} --checkpoint-bytes 10485760 -v -c -f ${archive_name} -C ${HOME} ${exclude_list} ${source_directory} > ${logfile} 2>&1"
     tarsnap_restore="${TARSNAP_ATTRIBUTES} -v -x -f ${archive_name} -C ${HOME}/${local_directory} ${source_directory}/.syncstatus >> ${logfile} 2>&1"
     
     # Run the backups
@@ -137,16 +165,16 @@ exludes -> $excludes"
     # about compressed size - that's what we're paying for
     stats=$( sed -n '/Total size  Compressed size/,$p' ${logfile} | \
             awk '/^This archive/ { printf ("%d,", $3) }  \
-                 /^New data/ { printf ("%d\n", $3)}' )
+                 /^New data/ { printf ("%d", $3)}' )
         
-    printf "%s,tarsnap,%s,%s" ${datestamp} ${archive}_${source_directory} ${stats} >> $STATS_FILE
+    printf "%s,tarsnap,%s,%s\n" ${datestamp} ${tarsnap_archive} ${stats} >> $STATS_FILE
             
     #Now try and extract the file backout so that SyncStatus can check it
     logger "Tarsnap restore -> $tarsnap_restore"
     eval $tarsnap_restore
 
     # Now do the prune - hardcoded parameters for now
-	tarsnap_prune="/usr/local/bin/tarsnap_prune.py -t \"${TARSNAP_ATTRIBUTES}\" -H 24 -D 28 -M 6 -A ${archive}_${source_directory}"
+	tarsnap_prune="/usr/local/bin/tarsnap_prune.py -t \"${TARSNAP_ATTRIBUTES}\" -H 24 -D 28 -M 6 -A ${tarsnap_archive}"
 	logger "Tarsnap prune -> $tarsnap_prune"
 	eval $tarsnap_prune
 }
@@ -193,11 +221,6 @@ horcruxBackup() {
 	logger "Horcrux clean -> $horcrux_clean"
 }
 
-fatal() {
-    logger "FATAL: $*"
-    exit 1
-}
-
 if [ $# -eq 0 ]; then
     CONFIG_FILE=$HOME/etc/backups.conf
 elif [ $# -eq 1 ]; then
@@ -235,3 +258,5 @@ do
             ;;
     esac
 done
+
+rm $pidfile
