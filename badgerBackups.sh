@@ -8,7 +8,7 @@
 # 3) Keep the archives clean
 # The actions are determined by the hostname
 
-DEBUG=1
+DEBUG=0
 
 logger() {
     echo >&2 `date +%Y%m%d.%H%m%S` "-> $*"
@@ -42,7 +42,7 @@ fi
 . $HOME/.bash_profile
 EXEC_NAME=$0
 HOST=$( hostname | cut -d. -f1 )
-TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile /Users/stu/etc/tarsnap.key --cachedir /Users/stu/.tarsnap --print-stats"
+TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile /Users/stu/etc/tarsnap.key --cachedir /Users/stu/.tarsnap"
 STATS_FILE=/Users/stu/Documents/Geek/backupstats.csv
 
 usage() {
@@ -147,14 +147,14 @@ exludes -> $excludes"
     do
         exclude_list="$exclude_list --exclude $exclude"
     done
-    
+
     # Run the backup first
-    datestamp=$( date +%Y%m%d.%H%S )
+    datestamp=$( date +%Y%m%d.%H%M )
 	tarsnap_archive=${archive}.${source_directory}
     archive_name=${datestamp}.${tarsnap_archive}
     logfile="/Users/stu/Logs/${datestamp}-tarsnap.${source_directory}.log"
 
-    tarsnap_backup="${TARSNAP_ATTRIBUTES} --checkpoint-bytes 10485760 -v -c -f ${archive_name} -C ${HOME} ${exclude_list} ${source_directory} > ${logfile} 2>&1"
+    tarsnap_backup="${TARSNAP_ATTRIBUTES} --checkpoint-bytes 10485760 --print-stats -v -c -f ${archive_name} -C ${HOME} ${exclude_list} ${source_directory} > ${logfile} 2>&1"
     tarsnap_restore="${TARSNAP_ATTRIBUTES} -v -x -f ${archive_name} -C ${HOME}/${local_directory} ${source_directory}/.syncstatus >> ${logfile} 2>&1"
     
     # Run the backups
@@ -187,7 +187,7 @@ horcruxBackup() {
     
     
     # Run the backup first
-    datestamp=$( date +%Y%m%d.%H%S )
+    datestamp=$( date +%Y%m%d.%H%M )
     horcrux_archive="${archive}.${source_directory}"
     logger "Running horcrux backup for -> $horcrux_archive"
     logfile="/Users/stu/Logs/${datestamp}-horcrux.${horcrux_archive}.log"
@@ -231,6 +231,11 @@ fi
 
 if [ ! -f $CONFIG_FILE ]; then
 	fatal "FATAL: Config file $CONFIG_FILE not readable"
+fi
+
+# Used to store reference points for tarsnap backups
+if [ ! -d $TARSNAP_TIME_POINTS ]; then
+	mkdir -p $TARSNAP_TIME_POINTS
 fi
 
 # Iterate through config and get commands for this host
