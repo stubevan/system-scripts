@@ -8,8 +8,18 @@
 # 3) Keep the archives clean
 # The actions are determined by the hostname
 
-DEBUG=0
 
+. $HOME/.bash_profile
+DEBUG=0
+PRODUCTION=0
+EXEC_NAME=$0
+HOST=$( hostname | cut -d. -f1 )
+TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile /Users/stu/etc/tarsnap.key --cachedir /Users/stu/.tarsnap"
+STATS_FILE=/Users/stu/Documents/Geek/backupstats.csv
+
+LOGFILE="/Users/stu/Logs/`date +%Y%m%d`-badgerBackups.log"
+
+# Helper methods
 logger() {
     echo >&2 `date +%Y%m%d.%H%m%S` "-> $*"
 }
@@ -18,32 +28,6 @@ fatal() {
     logger "FATAL: $*"
     exit 1
 }
-
-log="/Users/stu/Logs/`date +%Y%m%d`-badgerBackups.log"
-
-# Check we're not aready running
-pidfile=/var/tmp/badgerBackups.pid
-
-if [ -f $pidfile ]; then
-	pid=`cat $pidfile`
-	kill -0 $pid
-	if [ $? == 0 ]; then
-		# backups running elsewhere
-		fatal "$0 already running - $$"
-	fi
-fi
-
-printf "%d" $$ > $pidfile
-
-if [ $DEBUG == 0 ]; then
-	exec >> $log 2>&1
-fi
-
-. $HOME/.bash_profile
-EXEC_NAME=$0
-HOST=$( hostname | cut -d. -f1 )
-TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile /Users/stu/etc/tarsnap.key --cachedir /Users/stu/.tarsnap"
-STATS_FILE=/Users/stu/Documents/Geek/backupstats.csv
 
 usage() {
 	echo "Usage: $EXEC_NAME { config_file }"
@@ -55,54 +39,114 @@ usage() {
 getAttribute() {
     # Recover an attribute from the config file
     
-    # host : file : archive_name source Directory : local Directory
+    # host : file : archive_name : source Directory : local Directory
     # host : horcrux : archive Name : source Directory : local Directory
     # host : tarsnap : archive Name : source Directory : local Directory : excludes
+	# TMName : Time Machine Volume : Mount Point : Time Machine Base : Backup Base
     if [ $# != 2 ]; then
     	fatal "getAttribute called with incorrect number of parameters -> $*"
     fi
     line=$1
     action=$2
     
-    if [ "$action" == "backup_type" ]; then
-        field=2
-    else
-        backup_type=$( getAttribute $line "backup_type" )
-
-		if [ $DEBUG != 0 ]; then
-			logger "backup_type -> $backup_type for $action"
-		fi
-
-        case $action in
-            "archive_name" )
-                field=3
-                ;;
-            "source_directory" )
-                 field=4
-                ;;
-            "local_directory" )
-                field=5
-                ;;
-            "excludes" )
-                field=6
-                ;;
-            *)
-                fatal "Invalid action ->${action}<-"
-		;;
-        esac
-    fi
+    case $action in
+        "backup_type" )
+            field=2
+            ;;
+        "time_machine_volume" )
+            field=2
+            ;;
+        "archive_name" )
+            field=3
+            ;;
+        "mount_point" )
+            field=3
+            ;;
+        "source_directory" )
+            field=4
+            ;;
+        "time_machine_base" )
+            field=4
+            ;;
+        "local_directory" )
+            field=5
+            ;;
+        "backup_base" )
+            field=5
+            ;;
+        "excludes" )
+            field=6
+            ;;
+        *)
+            fatal "Invalid action ->${action}<-"
+            ;;
+    esac
     
     # now get the field
     retvalue=$( echo $line | awk -F: "{ print \$${field} }" )
-	if [ $DEBUG != 0 ];	then
+    if [ $DEBUG != 0 ];	then
     	logger "got $retvalue for $action"
-	fi
+    fi
     
     if [ "$retvalue" == "" ]; then
         fatal "No data found for field $action:$field in $CONFIG_FILE"
     fi
     
     echo $retvalue
+}
+
+recoverTimeMachine() {
+    archive_name=$1
+    source_directory=$2
+    local_directory=$3
+
+    #create the target directory and empty it
+    target_directory="${HOME}/${local_directory}/${source_directory}/.syncstatus"
+    if [ ! -d "${target_directory}" ]; then
+            mkdir -p "${target_directory}"
+    else
+            rm -f "${target_directory}"/*.st
+    fi
+
+    # Get the source directory from the config file
+    # then need to add on the rest of the path to get the base to stu home
+
+    # Get the directory in the time machine where the data resides
+    time_machine_line=$( grep "^${archive_name}" $CONFIG_FILE )
+    if [ "${time_machine_line}" == "" ]; then
+            fatal "Couldn't find details for ${archive_name} in ${CONFIG_FILE}"
+    fi
+
+    # TMName : Time Machine Volume : Time Machine Base : Mount Point : Backup Base
+    time_machine_volume=$( getAttribute "$time_machine_line" "time_machine_volume" )
+    mount_point=$( getAttribute "$time_machine_line" "mount_point" )
+    time_machine_base=$( getAttribute "$time_machine_line" "time_machine_base" )
+    backup_base=$( getAttribute "$time_machine_line" "backup_base" )
+    
+    logger "timeMachineDirectory: time_machine_volume -> ${time_machine_volume}, \
+mount_point -> ${mount_point}, time_machine_base -> ${time_machine_base}, \
+backup_base -> ${backup_base}"
+
+    # Check that the time machine volume is mounted - if it's not it doesn't
+    # matter as we may have been called inppropriately
+    df "$mount_point" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+    
+        # Get the latest backup
+        latest_backup=$( ls "${mount_point}/${time_machine_base}" | grep "[0-9]$" | tail -1 )
+        if [ "${latest_backup}" == "" ]; then
+            fatal "Cant find list of backups in ${mount_point}/${time_machine_base}"
+        fi
+    
+        # and then set the return 
+        backup_dir="${mount_point}/${time_machine_base}/${latest_backup}/${backup_base}"
+    
+        if [ ! -d "${backup_dir}" ]; then
+            fatal "Time machine base for ${archive} -> ${backup_dir} not accessible"
+        fi
+    
+        cp -rp "${backup_dir}/${source_directory}"/.syncstatus/* "$target_directory"
+    fi
 }
 
 recoverFile() {
@@ -118,12 +162,23 @@ recoverFile() {
     archive_name=$1
     source_directory=$2
     local_directory=$3
+
+    #create the target directory and empty it
+    target_directory="${HOME}/${local_directory}/${source_directory}/.syncstatus"
+    if [ ! -d "${target_directory}" ]; then
+            mkdir -p "${target_directory}"
+    else
+            rm -f "${target_directory}"/*.st
+    fi
+
+    # get the base file
+    time_machine_base=$( tmutil latestbackup )
     
-    cp -rp $source_directory $local_directory
+    cp -rp "${time_machine_base}/${source_directory}"/.syncstatus/* "$target_directory"
     
     # Now get the stats - well use these later - for files computing
     # the delta is too expensive - we'll have to work that out
-    stats=$( df $source_directory | awk '{ printf ("%d\n, ", $3)' )
+    stats=$( df "${time_machine_base}" | awk '{ printf ("%d\n, ", $3) }' )
     
     echo "$datestamp, file, $archive, $stats" >> $STATS_FILE
 }
@@ -150,9 +205,12 @@ exludes -> $excludes"
 
     # Run the backup first
     datestamp=$( date +%Y%m%d.%H%M )
-	tarsnap_archive=${archive}.${source_directory}
+    
+    # Take care of source directories not in the home directory
+    modded_source=$( echo ${source_directory} | sed "s,/,_,g" )
+    tarsnap_archive=${archive}.${modded_source}
     archive_name=${datestamp}.${tarsnap_archive}
-    logfile="/Users/stu/Logs/${datestamp}-tarsnap.${source_directory}.log"
+    logfile="/Users/stu/Logs/${datestamp}-tarsnap.${modded_source}.log"
 
     tarsnap_backup="${TARSNAP_ATTRIBUTES} --checkpoint-bytes 10485760 --print-stats -v -c -f ${archive_name} -C ${HOME} ${exclude_list} ${source_directory} > ${logfile} 2>&1"
     tarsnap_restore="${TARSNAP_ATTRIBUTES} -v -x -f ${archive_name} -C ${HOME}/${local_directory} ${source_directory}/.syncstatus >> ${logfile} 2>&1"
@@ -174,9 +232,9 @@ exludes -> $excludes"
     eval $tarsnap_restore
 
     # Now do the prune - hardcoded parameters for now
-	tarsnap_prune="/usr/local/bin/tarsnap_prune.py -t \"${TARSNAP_ATTRIBUTES}\" -H 24 -D 28 -M 6 -A ${tarsnap_archive}"
-	logger "Tarsnap prune -> $tarsnap_prune"
-	eval $tarsnap_prune
+    tarsnap_prune="/usr/local/bin/tarsnap_prune.py -t \"${TARSNAP_ATTRIBUTES}\" -H 24 -D 28 -M 6 -A ${tarsnap_archive}"
+    logger "Tarsnap prune -> $tarsnap_prune"
+    eval $tarsnap_prune
 }
 
 horcruxBackup() {
@@ -184,7 +242,6 @@ horcruxBackup() {
     archive=$1
     source_directory=$2
     local_directory=$3
-    
     
     # Run the backup first
     datestamp=$( date +%Y%m%d.%H%M )
@@ -216,52 +273,95 @@ horcruxBackup() {
     logger "Horcrux restore -> $horcrux_restore"
     eval $horcrux_restore
 
-	# Finally cleanup
-	horcrux_clean="horcrux clean $horcrux_archive"
-	logger "Horcrux clean -> $horcrux_clean"
+    # Finally cleanup
+    horcrux_clean="horcrux clean $horcrux_archive"
+    logger "Horcrux clean -> $horcrux_clean"
 }
 
-if [ $# -eq 0 ]; then
-    CONFIG_FILE=$HOME/etc/backups.conf
-elif [ $# -eq 1 ]; then
-    CONFIG_FILE=$1
-else
-    usage
+#--------------- MAIN -----------------------
+# Check we're not aready running
+pidfile=/var/tmp/badgerBackups.pid
+
+if [ -f $pidfile ]; then
+	pid=`cat $pidfile`
+	kill -0 $pid 2> /dev/null
+	if [ $? == 0 ]; then
+		# backups running elsewhere
+		fatal "$0 already running - $$"
+	fi
+fi
+
+printf "%d" $$ > $pidfile
+
+#-----------------------------------------------
+# Option parsing
+#-----------------------------------------------
+
+# Parse single-letter options
+while getopts :c:dp opt; do
+    case "$opt" in
+        c)    CONFIG_FILE="$OPTARG"
+              ;;
+        d)    DEBUG=1
+              ;;
+        p)    PRODUCTION=1
+              ;;
+        '?')  fatal "invalid option $OPTARG."
+              ;;
+    esac
+done
+
+# WE have all the options - everything left is a list of backup types to process
+shift $((OPTIND-1))
+BACKUP_TYPES=$*
+
+if [ "$CONFIG_FILE" == "" ]; then
+    fatal "No Config file specified"
 fi
 
 if [ ! -f $CONFIG_FILE ]; then
-	fatal "FATAL: Config file $CONFIG_FILE not readable"
+    fatal "Config file $CONFIG_FILE not readable"
 fi
 
-# Used to store reference points for tarsnap backups
-if [ ! -d $TARSNAP_TIME_POINTS ]; then
-	mkdir -p $TARSNAP_TIME_POINTS
+if [ "$BACKUP_TYPES" == "" ]; then
+    fatal "No backup specified"
 fi
 
-# Iterate through config and get commands for this host
-for line in `grep "^${HOST}:" $CONFIG_FILE`
+# if not debugging then redirect all subsequent output
+if [ $PRODUCTION == 1 ]; then
+	exec >> $LOGFILE 2>&1
+fi
+
+# Iterate through config and get commands for this host and backup type
+for line in `grep "^${HOST}:${backup_command}" $CONFIG_FILE`
 do
     logger "Processing -> $line"
-    backup_type=$(getAttribute $line "backup_type")
-    archive_name=$( getAttribute $line "archive_name" )
-    source_directory=$( getAttribute $line "source_directory" )
-    local_directory=$( getAttribute $line "local_directory" )
-    
+    backup_type=$(getAttribute "$line" "backup_type")
+    archive_name=$( getAttribute "$line" "archive_name" )
+    source_directory=$( getAttribute "$line" "source_directory" )
+    local_directory=$( getAttribute "$line" "local_directory" )
+        
     case $backup_type in
-        "File")
+        "file")
             recoverFile $archive_name $source_directory $local_directory
             ;;
         "tarsnap")
             excludes=$( getAttribute $line "excludes" )
-            tarsnapBackup $archive_name $source_directory  $local_directory $excludes
+            tarsnapBackup $archive_name $source_directory $local_directory $excludes
             ;;
         "horcrux")
             horcruxBackup $archive_name $source_directory $local_directory         
             ;;
+        "time_machine")
+            recoverTimeMachine $archive_name $source_directory $local_directory
+            ;;
         *)
-            fatal "invalid operation type -> $backup_type"
+            fatal "invalid operation type -> $backup_type in $line"
             ;;
     esac
 done
 
+# Clean Up
 rm $pidfile
+
+exit 0
