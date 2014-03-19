@@ -11,41 +11,41 @@ import subprocess
 import logging
 
 def form_prune_list(archive_list,
-                    archive_name,
                     hours_to_keep,
                     days_to_keep,
                     months_to_keep,
                     time_now = datetime.now()) :
     '''
 	archive_list - entries of the form YYYYMMDD.HHMM-ArchiveName
-	archiveName - anything which doesn't match will be ignored
+	             - Anything that doesnt match will be ignored
 	hours_to_keep
 	days_to_keep
 	months_to_keep
 	time_now - only set for testing purposes
 
-        method works by starting from the oldest
+        If there is more than one match in a given criteria then keep the newest
+
     '''
 
     return_list = []
-    keep_list = []
-    months_got = {}
-    days_got = {}
-    hours_got = {}
+    
+    archive_dict = {}
 
-    logging.info('form_prune_list: archive_name: %s,  months_to_keep %d, '
+    logging.info('form_prune_list: months_to_keep %d, '
                  "days_to_keep: %d, hours_to_keep %d, time_now: %s", \
-                    archive_name, months_to_keep, days_to_keep, hours_to_keep, \
-                    str(time_now))
+                    months_to_keep, days_to_keep, hours_to_keep,  str(time_now))
 
-    archive_list.sort(reverse=True)
+    # Want to start with the newest
+    archive_list.sort(reverse = True) 
 
     for archive_to_check in archive_list :
         
         # check that it's a valid archive
-        if archive_to_check[len(archive_to_check) - len(archive_name):] \
-            != archive_name :
+        if archive_to_check[8] != '.' and archive_to_check[13] != '-' :
+            logging.warning('form_prune_list: unusual archive %s -> IGNORING')
             continue
+
+        archive_name = archive_to_check[14:]
 
         # extract the date components and then find the difference
         archive_year = int(archive_to_check[:4])
@@ -55,46 +55,60 @@ def form_prune_list(archive_list,
             
         archive_date = datetime(archive_year, archive_month, archive_day,
                                 archive_hour)
-            
+        
         time_delta = time_now - archive_date
         time_delta_sec = time_delta.total_seconds()
             
         time_delta_hours = time_delta_sec // 3600
         time_delta_days = time_delta_hours // 24
-        # OK It's not strictly a month but its good enough
-        time_delta_months = time_delta_days // 28
+        
+        time_delta_months = (time_now.year * 12 + time_now.month) - \
+                    (archive_year * 12 + archive_month)
             
         logging.debug("Differences months: %d , days: %d, hours: %d", \
                 time_delta_months, time_delta_days, time_delta_hours)
+        
+        # get details about what has been found so far
+        if archive_name not in archive_dict :
+            hours_got = {}
+            days_got = {}
+            months_got = {}
             
-            # Does it fall within the months boundary
-        if int(time_delta_months) < int(months_to_keep):
-            # yes - check to see whether this month already covered
-            if archive_month not in months_got :
-                months_got[archive_month] = True
+            archive_dict[archive_name] = (hours_got, days_got, months_got)
+        else:
+            (hours_got, days_got, months_got) = archive_dict[archive_name]
+        
+        saved = False
+        # Does it fall within the hours boundary
+        if time_delta_hours < hours_to_keep :
+            if not hours_got.get(time_delta_hours, False) :
+                hours_got[time_delta_hours] = True
+                days_got[time_delta_days] = True
+                months_got[time_delta_months] = True
+                saved = True
+                logging.info("Keeping -> %s on hours", archive_to_check)
 
-                logging.debug("Saving %s on month", archive_to_check)
-                keep_list.append(archive_to_check)
-                continue
+        # Does it fall within the days boundary
+        if time_delta_days < days_to_keep  :
+            if not days_got.get(time_delta_days, False) :
+                days_got[time_delta_days] = True
+                months_got[time_delta_months] = True
+                if not saved :
+                    saved = True
+                    logging.info("Keeping -> %s on days", archive_to_check)
+                
+        # Does it fall within the months boundary
+        if time_delta_months < months_to_keep :
+            # yes - check to see whether this month already covered
+            if not months_got.get(time_delta_months, False) :
+                months_got[time_delta_months] = True
+                if not saved :
+                    saved = True
+                    logging.info("Keeping -> %s on months", archive_to_check)
                             
-            # Does it fall within the days boundary
-            if int(time_delta_days) < int(days_to_keep) :
-                if archive_day not in days_got :
-                    days_got[archive_day] = True
-                    keep_list.append(archive_to_check)
-                    logging.debug("Saving %s on days", archive_to_check)
-                    continue
-                    
-            # Does it fall within the hours boundary
-            if int(time_delta_hours) < int(hours_to_keep):
-                if archive_hour not in hours_got :
-                    hours_got[archive_hour] = True
-                    keep_list.append(archive_to_check)
-                    logging.debug("Saving %s on hours", archive_to_check)
-                    continue
-                            
+        if not saved :               
             # at this point nobody wants us :(
-            logging.debug("Deleting: %s ", archive_to_check)
+            logging.info("Pruning -> %s ", archive_to_check)
             return_list.append(archive_to_check)
 
     return return_list                                  
@@ -118,12 +132,14 @@ def main() :
     p.add_argument('-t', '--tarsnap_args', dest='tarsnap_args', required=True,
                    metavar='Tarsnap Args',
                    help='[REQUIRED] Default arguments to tarsnap')
-    p.add_argument('-A', '--archive_name', dest='archive_name', required=True,
-                   metavar='Archive Name',
-                   help='[REQUIRED] The Archive We want to Prune')
+    p.add_argument('-n', '--dryrun', dest='dryrun', required=False,
+                   action="store_true",
+                   help='[OPTIONAL] Debug')
     p.add_argument('-d', '--debug', dest='debug', required=False,
                    action="store_true",
                    help='[OPTIONAL] Debug')
+    p.add_argument('-T', '--test_file', dest='testfile', required=False,
+               help='[OPTIONAL] Test - file containing tarsnap output')
     
     args = p.parse_args()
 
@@ -140,44 +156,55 @@ def main() :
         format = "%(levelname)-10s %(asctime)s %(message)s",
         level = loglevel)
     
-    # get the archive
-    tarsnap_command = args.tarsnap_args + " --list-archives"
-    logging.debug('getting archives: %s', tarsnap_command)
-    sub = subprocess.Popen(tarsnap_command, shell=True,
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE)
-    
-    error_string = sub.stderr.read()
-    if error_string != "" :
-        # We've had a probem
-        logging.fatal("Listing of tarsnap archives failed: %s ", error_string)
-        sys.exit(1)
+    # Lets see if we're testing
+    if args.testfile :
+        logging.info("TESTING - Reading archive from -> %s", args.testfile)
+        with open(args.testfile) as f:
+            archive_list = [line.rstrip() for line in f]
+    else :
+        if args.dryrun :
+            logging.info("Dry Run - no archives will be deleted")
+            
+        # get the archive list from tarsnap
+        tarsnap_command = args.tarsnap_args + " --list-archives"
+        logging.info('getting archives: %s', tarsnap_command)
+        sub = subprocess.Popen(tarsnap_command, shell=True,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
         
-    archive_string = sub.stdout.read()
-    
-    archive_list = archive_string.split('\n')
+        error_string = sub.stderr.read()
+        if error_string != "" :
+            # We've had a probem
+            logging.fatal("Listing of tarsnap archives failed: %s ",
+                          error_string)
+            sys.exit(1)
+            
+        archive_string = sub.stdout.read()
+        
+        archive_list = archive_string.split('\n')
     
     archives_to_delete = form_prune_list(
-        archive_list, args.archive_name, hours_to_keep = args.hours_to_keep,
+        archive_list, hours_to_keep = args.hours_to_keep,
         days_to_keep = args.days_to_keep, months_to_keep = args.months_to_keep)
     
     # we have the archive list - lets do the damage
     for archive_to_delete in archives_to_delete:
         tarsnap_command = args.tarsnap_args + " -d -f " + archive_to_delete
             
-        logging.info("Pruning -> %s", archive_to_delete)
-        logging.debug("Tarsnap command -> %s", tarsnap_command)
+        logging.info("Deleting tarsnap archive -> %s", archive_to_delete)
         
-        sub = subprocess.Popen(tarsnap_command, shell=True,
-                              stderr=subprocess.PIPE,
-                              stdout=open('/dev/null'))
-        
-        error_string = sub.stderr.read()
-        if error_string != "" :
-            # We've had a probem
-            logging.fatal("Deletion of tarsnap archive %s failed: %s ",
-                          archive_to_delete, error_string)
-            sys.exit(1)
+        if not args.testfile and not args.dryrun :
+            logging.debug("Tarsnap command -> %s", tarsnap_command)
+            sub = subprocess.Popen(tarsnap_command, shell=True,
+                                  stderr=subprocess.PIPE,
+                                  stdout=open('/dev/null'))
+            
+            error_string = sub.stderr.read()
+            if error_string != "" :
+                # We've had a probem
+                logging.fatal("Deletion of tarsnap archive %s failed: %s ",
+                              archive_to_delete, error_string)
+                sys.exit(1)
         
 if __name__ == '__main__':
     exit(main())
