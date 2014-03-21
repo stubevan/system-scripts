@@ -41,8 +41,8 @@ def form_prune_list(archive_list,
     for archive_to_check in archive_list :
         
         # check that it's a valid archive
-        if archive_to_check[8] != '.' and archive_to_check[13] != '-' :
-            logging.warning('form_prune_list: unusual archive %s -> IGNORING')
+        if len(archive_to_check) < 14 or (archive_to_check[8] != '.' and archive_to_check[13] != '-') :
+            logging.warning('form_prune_list: unusual archive %s -> IGNORING', archive_to_check)
             continue
 
         archive_name = archive_to_check[14:]
