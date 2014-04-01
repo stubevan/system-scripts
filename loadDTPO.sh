@@ -15,52 +15,25 @@ exec >> /Users/stu/Logs/`date +%Y%m%d`-loadDTPO.log 2>&1
 echo
 echo "loadDTPO -> $*"
 
-LOAD_BASE="$HOME/Documents/Time For Action/Autoload to DTPO/Target Group"
 ORPHANS="$HOME/Documents/Time For Action/"
 
-DTPO_DATABASE="/Volumes/DTPO/Home Filing.dtBase2"
-DEFAULT_TAGS="Action Required"
+DTPO_DATABASE="/Volumes/Boxcryptor/DTPO/DTPO.bc_encrypted/Home Filing.dtBase2"
 DTPO_LOADER=/usr/local/bin/dtpo_loader.py
 
 # File to be loaded is specified in $1
-if [ ! $# == 1 ]; then
-	echo "Incorrect usage - no source file specified"
+if [ ! $# == 3 ]; then
+	echo "Incorrect usage - $0 SourceFile GroupName Tags"
 	exit 1
 fi
 
 SOURCE_FILE="$1"
-
 DOCUMENT_NAME=`basename "$SOURCE_FILE"`
-GROUP_NAME=`dirname "$SOURCE_FILE" | sed "s,$LOAD_BASE/,,"`
 
-# check whether the specified directory does exist
-if [ ! -d "$LOAD_BASE/$GROUP_NAME" ]; then
-	echo "Invalid Group Name $GROUP_NAME"
-	exit 1
-fi
+GROUP_NAME="$2"
+TAGS="$3"
 
-#See whether there is a settings file
-SETTINGS="$GROUP_NAME/DTPO_Settings"
-if [ -f "$SETTINGS" ]; then
-	TAGS=`grep "TAGS=" "$SETTINGS" | sed 's,^TAGS=,,'`
-	X_DATABASE=`grep "DATABASE=" "$SETTINGS" | sed 's,^DATABASE=,,'`
-fi
-
-if [ "$TAGS" == "" ]; then
-	TAGS="$DEFAULT_TAGS"
-fi
-
-TAGS_COMMAND=""
-if [ ! "$TAGS" == "" ]; then
-	TAGS_COMMAND="-t $TAGS"
-fi
-
-if [ -f "$X-DATABASE" ]; then
-	DTPO_DATABASE="$DEFAULT_TAGS"
-fi
-
-echo "Running -> $DTPO_LOADER -d $DTPO_DATABASE -s $SOURCE_FILE -g $GROUP_NAME $TAGS_COMMAND"
-$DTPO_LOADER -d "$DTPO_DATABASE" -s "$SOURCE_FILE" -g "$GROUP_NAME" "$TAGS_COMMAND"
+echo "Running -> $DTPO_LOADER -d $DTPO_DATABASE -s $SOURCE_FILE -g $GROUP_NAME -t $TAGS"
+$DTPO_LOADER -d "$DTPO_DATABASE" -s "$SOURCE_FILE" -g "$GROUP_NAME" -t "$TAGS"
 RESULT=$?
 
 if [ $RESULT == 0 ]; then
