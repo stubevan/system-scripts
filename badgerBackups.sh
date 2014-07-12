@@ -230,11 +230,6 @@ exludes -> $excludes"
     #Now try and extract the file backout so that SyncStatus can check it
     logger "Tarsnap restore -> $tarsnap_restore"
     eval $tarsnap_restore
-
-    # Now do the prune - hardcoded parameters for now
-    tarsnap_prune="/usr/local/bin/tarsnap_prune.py -t \"${TARSNAP_ATTRIBUTES}\" -H 24 -D 28 -M 6 -A ${tarsnap_archive}"
-    logger "Tarsnap prune -> $tarsnap_prune"
-    eval $tarsnap_prune
 }
 
 horcruxBackup() {
@@ -274,8 +269,13 @@ horcruxBackup() {
     eval $horcrux_restore
 
     # Finally cleanup
-    horcrux_clean="horcrux clean $horcrux_archive"
+    horcrux_clean="horcrux clean $horcrux_archive >> ${logfile} 2>&1"
     logger "Horcrux clean -> $horcrux_clean"
+	eval $horcrux_clean
+
+	horcrux_remove="horcrux remove $horcrux_archive >> ${logfile} 2>&1"
+	logger "Horcrux remove -> $horcrux_remove"
+	eval $horcrux_remove
 }
 
 #--------------- MAIN -----------------------
@@ -333,6 +333,7 @@ if [ $PRODUCTION == 1 ]; then
 fi
 
 # Iterate through config and get commands for this host and backup type
+tarsnap_run=0
 for line in `grep "^${HOST}:${backup_command}" $CONFIG_FILE`
 do
     logger "Processing -> $line"
@@ -348,6 +349,7 @@ do
         "tarsnap")
             excludes=$( getAttribute $line "excludes" )
             tarsnapBackup $archive_name $source_directory $local_directory $excludes
+			tarsnap_run=1
             ;;
         "horcrux")
             horcruxBackup $archive_name $source_directory $local_directory         
@@ -360,6 +362,14 @@ do
             ;;
     esac
 done
+
+if [ $tarsnap_run == 1 ]; then
+    # Now do the prune - hardcoded parameters for now
+    tarsnap_prune="/usr/local/bin/tarsnap_prune.py -t \"${TARSNAP_ATTRIBUTES}\" -H 24 -D 28 -M 6"
+    logger "Tarsnap prune -> $tarsnap_prune"
+    eval $tarsnap_prune
+fi
+
 
 # Clean Up
 rm $pidfile
