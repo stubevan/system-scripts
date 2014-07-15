@@ -1,4 +1,4 @@
-#/bin/sh
+#!/bin/sh
 
 # This, hopefully, should be the last incarnation of the badgerBackup process!
 # The script has 3 purposes:
@@ -16,6 +16,7 @@ EXEC_NAME=$0
 HOST=$( hostname | cut -d. -f1 )
 TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile /Users/stu/etc/tarsnap.key --cachedir /Users/stu/.tarsnap"
 STATS_FILE=/Users/stu/Documents/Geek/backupstats.csv
+SYNCSTATUSFILE="_syncstatus"
 
 LOGFILE="/Users/stu/Logs/`date +%Y%m%d`-badgerBackups.log"
 
@@ -39,10 +40,9 @@ usage() {
 getAttribute() {
     # Recover an attribute from the config file
     
-    # host : file : archive_name : source Directory : local Directory
-    # host : horcrux : archive Name : source Directory : local Directory
+    # host : horcrux : archive Name : source Directory : local Directory : comma seperated list of full backup months
     # host : tarsnap : archive Name : source Directory : local Directory : excludes
-	# TMName : Time Machine Volume : Mount Point : Time Machine Base : Backup Base
+    # host : timemachine : - : source Directory : local Directory
     if [ $# != 2 ]; then
     	fatal "getAttribute called with incorrect number of parameters -> $*"
     fi
@@ -77,13 +77,16 @@ getAttribute() {
         "excludes" )
             field=6
             ;;
+        "fullbackupmonth" )
+            field=6
+            ;;
         *)
             fatal "Invalid action ->${action}<-"
             ;;
     esac
     
     # now get the field
-    retvalue=$( echo $line | awk -F: "{ print \$${field} }" )
+    retvalue=$( echo "${line}" | awk -F: "{ print \$${field} }" )
     if [ $DEBUG != 0 ];	then
     	logger "got $retvalue for $action"
     fi
@@ -95,92 +98,50 @@ getAttribute() {
     echo $retvalue
 }
 
-recoverTimeMachine() {
-    archive_name=$1
-    source_directory=$2
-    local_directory=$3
+# For horcrux we run a full backup if its the first of the month and
+# the month is specified in the config file
+backupType() {
+	fullbackupmonth=$1
 
-    #create the target directory and empty it
-    target_directory="${HOME}/${local_directory}/${source_directory}/.syncstatus"
-    if [ ! -d "${target_directory}" ]; then
-            mkdir -p "${target_directory}"
-    else
-            rm -f "${target_directory}"/*.st
-    fi
-
-    # Get the source directory from the config file
-    # then need to add on the rest of the path to get the base to stu home
-
-    # Get the directory in the time machine where the data resides
-    time_machine_line=$( grep "^${archive_name}" $CONFIG_FILE )
-    if [ "${time_machine_line}" == "" ]; then
-            fatal "Couldn't find details for ${archive_name} in ${CONFIG_FILE}"
-    fi
-
-    # TMName : Time Machine Volume : Time Machine Base : Mount Point : Backup Base
-    time_machine_volume=$( getAttribute "$time_machine_line" "time_machine_volume" )
-    mount_point=$( getAttribute "$time_machine_line" "mount_point" )
-    time_machine_base=$( getAttribute "$time_machine_line" "time_machine_base" )
-    backup_base=$( getAttribute "$time_machine_line" "backup_base" )
-    
-    logger "timeMachineDirectory: time_machine_volume -> ${time_machine_volume}, \
-mount_point -> ${mount_point}, time_machine_base -> ${time_machine_base}, \
-backup_base -> ${backup_base}"
-
-    # Check that the time machine volume is mounted - if it's not it doesn't
-    # matter as we may have been called inppropriately
-    df "$mount_point" > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
-    
-        # Get the latest backup
-        latest_backup=$( ls "${mount_point}/${time_machine_base}" | grep "[0-9]$" | tail -1 )
-        if [ "${latest_backup}" == "" ]; then
-            fatal "Cant find list of backups in ${mount_point}/${time_machine_base}"
-        fi
-    
-        # and then set the return 
-        backup_dir="${mount_point}/${time_machine_base}/${latest_backup}/${backup_base}"
-    
-        if [ ! -d "${backup_dir}" ]; then
-            fatal "Time machine base for ${archive} -> ${backup_dir} not accessible"
-        fi
-    
-        cp -rp "${backup_dir}/${source_directory}"/.syncstatus/* "$target_directory"
-    fi
+	fullbackup="N"
+	# is it the first of the month
+	if [ $( date +%d ) == "01" ]; then
+		month=$( date +%m )
+		OLD_FS=$IFS
+		IFS=,
+		for check in $fullbackupmonth
+		do
+			check=$( printf "%02d" $check )
+			if [ $check == $month ];then
+				fullbackup="Y"
+			fi
+		done
+	fi
+	
+	echo $fullbackup
 }
 
-recoverFile() {
-    # takes 3 parameters
-    # archive_name
-    # source file - of the form host!remote directory
-    # local directory
-    #
-    # Source Directory can contain LATEST Embedded - this to be replaced
-    # with the latest time machine entry
-    # host can take a special form host_tm indicates
-    
-    archive_name=$1
-    source_directory=$2
-    local_directory=$3
+recoverTimeMachine() {
+    source_directory=$1
+    local_directory=$2
 
-    #create the target directory and empty it
-    target_directory="${HOME}/${local_directory}/${source_directory}/.syncstatus"
-    if [ ! -d "${target_directory}" ]; then
-            mkdir -p "${target_directory}"
-    else
-            rm -f "${target_directory}"/*.st
+    #Ensure the target directory is empty
+    if [ -d "${local_directory}" ]; then
+            rm -rf "${local_directory}"
     fi
+    mkdir -p "${local_directory}"
 
-    # get the base file
-    time_machine_base=$( tmutil latestbackup )
-    
-    cp -rp "${time_machine_base}/${source_directory}"/.syncstatus/* "$target_directory"
-    
-    # Now get the stats - well use these later - for files computing
-    # the delta is too expensive - we'll have to work that out
-    stats=$( df "${time_machine_base}" | awk '{ printf ("%d\n, ", $3) }' )
-    
-    echo "$datestamp, file, $archive, $stats" >> $STATS_FILE
+    # Get the latest backup base
+    latest_backup="`tmutil latestbackup`"
+    logger "latest_backup -> ${latest_backup}"
+
+    # Check it's accessible and if so recover the directory - it may not work!
+    if [ ! "${latest_backup}" == "" ]; then
+        logger "Restoring contents of ${source_directory} to ${local_directory}"
+         tmutil restore "${latest_backup}/${source_directory}/${SYNCSTATUSFILE}" "${local_directory}"
+    else
+        logger "Latest backup ${latest_backup} not accessible"
+    fi   
 }
 
 tarsnapBackup() {
@@ -213,7 +174,7 @@ exludes -> $excludes"
     logfile="/Users/stu/Logs/${datestamp}-tarsnap.${modded_source}.log"
 
     tarsnap_backup="${TARSNAP_ATTRIBUTES} --checkpoint-bytes 10485760 --print-stats -v -c -f ${archive_name} -C ${HOME} ${exclude_list} ${source_directory} > ${logfile} 2>&1"
-    tarsnap_restore="${TARSNAP_ATTRIBUTES} -v -x -f ${archive_name} -C ${HOME}/${local_directory} ${source_directory}/.syncstatus >> ${logfile} 2>&1"
+    tarsnap_restore="${TARSNAP_ATTRIBUTES} -v -x -f ${archive_name} -C ${HOME}/${local_directory} ${source_directory}/${SYNCSTATUSFILE} >> ${logfile} 2>&1"
     
     # Run the backups
     logger "Tarsnap backup -> $tarsnap_backup"
@@ -237,6 +198,13 @@ horcruxBackup() {
     archive=$1
     source_directory=$2
     local_directory=$3
+	fullbackup=$4
+
+	if [ "$fullbackup" == "Y" ]; then
+		backup_type="full"
+	else
+		backup_type="inc"
+	fi
     
     # Run the backup first
     datestamp=$( date +%Y%m%d.%H%M )
@@ -245,15 +213,14 @@ horcruxBackup() {
     logfile="/Users/stu/Logs/${datestamp}-horcrux.${horcrux_archive}.log"
 
     # work out the restore directory and then make sure it's not there.  Duplicity won't overwrite
-    restore_directory=${HOME}/${local_directory}/${archive}/${source_directory}/.syncstatus
+    restore_directory=${HOME}/${local_directory}/${archive}/${source_directory}/${SYNCSTATUSFILE}
     if [ -d ${restore_directory} ]; then
         rm ${restore_directory}/*
         rmdir ${restore_directory}
     fi
-    horcrux_backup="horcrux auto $horcrux_archive >> ${logfile} 2>&1"
+    horcrux_backup="horcrux $backup_type $horcrux_archive >> ${logfile} 2>&1"
 
-    # horcrux -f .syncstatus restore BadgerSet.Dropbox ~/Local/Backups/SyncStatus/MrBadgerDropbox
-    horcrux_restore="horcrux -f .syncstatus restore $horcrux_archive ${restore_directory} >> ${logfile} 2>&1"
+    horcrux_restore="horcrux -f ${SYNCSTATUSFILE} restore $horcrux_archive ${restore_directory} >> ${logfile} 2>&1"
     
     logger "Horcrux backup -> $horcrux_backup"
     eval $horcrux_backup              
@@ -268,14 +235,16 @@ horcruxBackup() {
     logger "Horcrux restore -> $horcrux_restore"
     eval $horcrux_restore
 
-    # Finally cleanup
-    horcrux_clean="horcrux clean $horcrux_archive >> ${logfile} 2>&1"
-    logger "Horcrux clean -> $horcrux_clean"
-	eval $horcrux_clean
+	# if it's a full backup then tidy up 
+	if [ "$fullbackup" == "Y" ]; then
+		horcrux_clean="horcrux clean $horcrux_archive >> ${logfile} 2>&1"
+		logger "Horcrux clean -> $horcrux_clean"
+		eval $horcrux_clean
 
-	horcrux_remove="horcrux remove $horcrux_archive >> ${logfile} 2>&1"
-	logger "Horcrux remove -> $horcrux_remove"
-	eval $horcrux_remove
+		horcrux_remove="horcrux remove $horcrux_archive >> ${logfile} 2>&1"
+		logger "Horcrux remove -> $horcrux_remove"
+		eval $horcrux_remove
+	fi
 }
 
 #--------------- MAIN -----------------------
@@ -313,7 +282,6 @@ done
 
 # WE have all the options - everything left is a list of backup types to process
 shift $((OPTIND-1))
-BACKUP_TYPES=$*
 
 if [ "$CONFIG_FILE" == "" ]; then
     fatal "No Config file specified"
@@ -323,10 +291,6 @@ if [ ! -f $CONFIG_FILE ]; then
     fatal "Config file $CONFIG_FILE not readable"
 fi
 
-if [ "$BACKUP_TYPES" == "" ]; then
-    fatal "No backup specified"
-fi
-
 # if not debugging then redirect all subsequent output
 if [ $PRODUCTION == 1 ]; then
 	exec >> $LOGFILE 2>&1
@@ -334,6 +298,7 @@ fi
 
 # Iterate through config and get commands for this host and backup type
 tarsnap_run=0
+IFS=$'\n'
 for line in `grep "^${HOST}:${backup_command}" $CONFIG_FILE`
 do
     logger "Processing -> $line"
@@ -343,19 +308,18 @@ do
     local_directory=$( getAttribute "$line" "local_directory" )
         
     case $backup_type in
-        "file")
-            recoverFile $archive_name $source_directory $local_directory
-            ;;
         "tarsnap")
             excludes=$( getAttribute $line "excludes" )
             tarsnapBackup $archive_name $source_directory $local_directory $excludes
-			tarsnap_run=1
+	    tarsnap_run=1
             ;;
         "horcrux")
-            horcruxBackup $archive_name $source_directory $local_directory         
+			fullmonths=$( getAttribute $line "fullbackupmonth" )
+			fullbackup=$( backupType ${fullmonths} )
+            horcruxBackup $archive_name $source_directory $local_directory $fullbackup
             ;;
         "time_machine")
-            recoverTimeMachine $archive_name $source_directory $local_directory
+            recoverTimeMachine $source_directory $local_directory
             ;;
         *)
             fatal "invalid operation type -> $backup_type in $line"
