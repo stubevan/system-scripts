@@ -280,13 +280,6 @@ while getopts :c:dp opt; do
     esac
 done
 
-# WE have all the options - everything left is a list of backup types to process
-shift $((OPTIND-1))
-
-if [ "$CONFIG_FILE" == "" ]; then
-    fatal "No Config file specified"
-fi
-
 if [ ! -f $CONFIG_FILE ]; then
     fatal "Config file $CONFIG_FILE not readable"
 fi
@@ -299,7 +292,7 @@ fi
 # Iterate through config and get commands for this host and backup type
 tarsnap_run=0
 IFS=$'\n'
-for line in `grep "^${HOST}:${backup_command}" $CONFIG_FILE`
+for line in `grep "^${HOST}" $CONFIG_FILE`
 do
     logger "Processing -> $line"
     backup_type=$(getAttribute "$line" "backup_type")
