@@ -17,7 +17,7 @@ echo "loadDTPO -> $*"
 
 ORPHANS="$HOME/Documents/Time For Action/"
 
-DTPO_DATABASE="/Volumes/Boxcryptor/DTPO/DTPO.bc_encrypted/Home Filing.dtBase2"
+DTPO_DATABASE="/Users/stu/Local/DTPO/Home Filing.dtBase2"
 DTPO_LOADER=/usr/local/bin/dtpo_loader.py
 
 # File to be loaded is specified in $1

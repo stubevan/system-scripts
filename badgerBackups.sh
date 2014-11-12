@@ -15,6 +15,7 @@ PRODUCTION=0
 EXEC_NAME=$0
 HOST=$( hostname | cut -d. -f1 )
 TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile /Users/stu/etc/tarsnap.key --cachedir /Users/stu/.tarsnap"
+RSYNC_ATTRIBUTES="rsync -aiv --omit-dir-times --backup --delete -e 'ssh'"
 STATS_FILE=/Users/stu/Documents/Geek/backupstats.csv
 SYNCSTATUSFILE="_syncstatus"
 
@@ -31,10 +32,10 @@ fatal() {
 }
 
 usage() {
-	echo "Usage: $EXEC_NAME { config_file }"
-	echo "	If no file system specified all entries in $CONFIG_FILE will be processed"
-	echo "	If no no action and no file system specified then mount all"
-	exit 1
+    echo "Usage: $EXEC_NAME { config_file }"
+    echo "	If no file system specified all entries in $CONFIG_FILE will be processed"
+    echo "	If no no action and no file system specified then mount all"
+    exit 1
 }
 
 getAttribute() {
@@ -101,24 +102,24 @@ getAttribute() {
 # For horcrux we run a full backup if its the first of the month and
 # the month is specified in the config file
 backupType() {
-	fullbackupmonth=$1
+    fullbackupmonth=$1
 
-	fullbackup="N"
-	# is it the first of the month
-	if [ $( date +%d ) == "01" ]; then
-		month=$( date +%m )
-		OLD_FS=$IFS
-		IFS=,
-		for check in $fullbackupmonth
-		do
-			check=$( printf "%02d" $check )
-			if [ $check == $month ];then
-				fullbackup="Y"
-			fi
-		done
-	fi
-	
-	echo $fullbackup
+    fullbackup="N"
+    # is it the first of the month
+    if [ $( date +%d ) == "01" ]; then
+        month=$( date +%m )
+        OLD_FS=$IFS
+        IFS=,
+        for check in $fullbackupmonth
+        do
+            check=$( printf "%02d" $check )
+            if [ $check == $month ];then
+                fullbackup="Y"
+            fi
+        done
+    fi
+    
+    echo $fullbackup
 }
 
 recoverTimeMachine() {
@@ -142,6 +143,49 @@ recoverTimeMachine() {
     else
         logger "Latest backup ${latest_backup} not accessible"
     fi   
+}
+
+rsyncBackup() {
+    # Run the rsync backup
+    archive=$1
+    source_directory=$2
+    dest_directory=$3
+    excludes=$4
+    
+    logger "Running rsync backup for archive -> $archive \
+local_directory -> $local_directory source_directory -> $source_directory \
+exludes file -> $excludes"
+    
+    # Run the backup first
+    backupdate=$( date +%Y%m%d )
+    
+    # Take care of source directories not in the home directory
+    modded_source=$( echo ${source_directory} | sed "s,/,_,g" )
+    logfile="/Users/stu/Logs/${datestamp}-rsync.${modded_source}.log"
+    
+    # Calclate the backup directory
+    backupdir=$( echo {$dest_directory} | sed 's/^.*://' )
+    basedir=$( dirname $backupdir )
+    targetdir=$( basename $backupdir )
+    backupdir="${basedir}/Backups/${backupdate}/${targetdir}"
+
+    rsync_backup="${RSYNC_ATTRIBUTES} --exclude-from=${excludes} -backup-dir=${backupdir} ${source_directory} ${dest_directory} > ${logfile} 2>&1"
+    
+    # Run the backups
+    logger "Rsync backup -> $rsync_backup"
+    #eval $rsync_backup
+    exit 
+    # Now get the stats - well use these later - for tarsnap we only care
+    # about compressed size - that's what we're paying for
+    stats=$( sed -n '/Total size  Compressed size/,$p' ${logfile} | \
+            awk '/^This archive/ { printf ("%d,", $3) }  \
+                 /^New data/ { printf ("%d", $3)}' )
+        
+    printf "%s,tarsnap,%s,%s\n" ${datestamp} ${tarsnap_archive} ${stats} >> $STATS_FILE
+            
+    #Now try and extract the file backout so that SyncStatus can check it
+    logger "Tarsnap restore -> $tarsnap_restore"
+    eval $tarsnap_restore
 }
 
 tarsnapBackup() {
@@ -198,13 +242,13 @@ horcruxBackup() {
     archive=$1
     source_directory=$2
     local_directory=$3
-	fullbackup=$4
+    fullbackup=$4
 
-	if [ "$fullbackup" == "Y" ]; then
-		backup_type="full"
-	else
-		backup_type="inc"
-	fi
+    if [ "$fullbackup" == "Y" ]; then
+        backup_type="full"
+    else
+        backup_type="inc"
+    fi
     
     # Run the backup first
     datestamp=$( date +%Y%m%d.%H%M )
@@ -237,13 +281,13 @@ horcruxBackup() {
 
 	# if it's a full backup then tidy up 
 	if [ "$fullbackup" == "Y" ]; then
-		horcrux_clean="horcrux clean $horcrux_archive >> ${logfile} 2>&1"
-		logger "Horcrux clean -> $horcrux_clean"
-		eval $horcrux_clean
+            horcrux_clean="horcrux clean $horcrux_archive >> ${logfile} 2>&1"
+            logger "Horcrux clean -> $horcrux_clean"
+            eval $horcrux_clean
 
-		horcrux_remove="horcrux remove $horcrux_archive >> ${logfile} 2>&1"
-		logger "Horcrux remove -> $horcrux_remove"
-		eval $horcrux_remove
+            horcrux_remove="horcrux remove $horcrux_archive >> ${logfile} 2>&1"
+            logger "Horcrux remove -> $horcrux_remove"
+            eval $horcrux_remove
 	fi
 }
 
@@ -252,12 +296,12 @@ horcruxBackup() {
 pidfile=/var/tmp/badgerBackups.pid
 
 if [ -f $pidfile ]; then
-	pid=`cat $pidfile`
-	kill -0 $pid 2> /dev/null
-	if [ $? == 0 ]; then
-		# backups running elsewhere
-		fatal "$0 already running - $$"
-	fi
+    pid=`cat $pidfile`
+    kill -0 $pid 2> /dev/null
+    if [ $? == 0 ]; then
+        # backups running elsewhere
+        fatal "$0 already running - $$"
+    fi
 fi
 
 printf "%d" $$ > $pidfile
@@ -286,7 +330,7 @@ fi
 
 # if not debugging then redirect all subsequent output
 if [ $PRODUCTION == 1 ]; then
-	exec >> $LOGFILE 2>&1
+    exec >> $LOGFILE 2>&1
 fi
 
 # Iterate through config and get commands for this host and backup type
@@ -301,14 +345,18 @@ do
     local_directory=$( getAttribute "$line" "local_directory" )
         
     case $backup_type in
+        "rsync")
+            excludes=$( getAttribute $line "excludes" )
+            rsyncBackup $archive_name $source_directory $local_directory $excludes
+            ;;
         "tarsnap")
             excludes=$( getAttribute $line "excludes" )
             tarsnapBackup $archive_name $source_directory $local_directory $excludes
 	    tarsnap_run=1
             ;;
         "horcrux")
-			fullmonths=$( getAttribute $line "fullbackupmonth" )
-			fullbackup=$( backupType ${fullmonths} )
+            fullmonths=$( getAttribute $line "fullbackupmonth" )
+            fullbackup=$( backupType ${fullmonths} )
             horcruxBackup $archive_name $source_directory $local_directory $fullbackup
             ;;
         "time_machine")
