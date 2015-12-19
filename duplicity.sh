@@ -156,10 +156,10 @@ if [ "$DUPTYPE" == "backup" ]; then
 		logger.sh DEBUG "Backup command -> $duplicity_command"
 		eval $duplicity_command
 		if [ $? != 0 ]; then
-		    cat $TMPLOG
+		    cat $TMPLOG; rm $TMPLOG
 			fatal "Duplicity backup ${DUPLICITY_NAME} failed"
 		fi
-		cat $TMPLOG
+		cat $TMPLOG; rm $TMPLOG
 
 elif [ "$DUPTYPE" == "restore" ]; then
 
@@ -179,18 +179,24 @@ elif [ "$DUPTYPE" == "restore" ]; then
 			TARGET_DIRECTORY=${RESTORE_DIRECTORY}/${dir}/${SYNCSTATUSFILE}
 			logger.sh INFO "Restoring ${dir} to -> $TARGET_DIRECTORY"
 
-			logger.sh INFO "Cleaning directory -> $TTARGET"
-			rm -f $TARGET_DIRECTORY/*.st
-
-			restore_command="${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} -v5 --file-to-restore ${dir}/.syncstatus ${TARGET} ${TARGET_DIRECTORY}"
+			TMP_TARGET="/tmp/${DUPLICITY_NAME}"
+			mkdir "${TMP_TARGET}"
+			restore_command="${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} -v5 --file-to-restore ${dir}/.syncstatus ${TARGET} ${TMP_TARGET}"
 			logger.sh DEBUG "using -> $restore_command"
 			eval "$restore_command" > ${TMPLOG} 2>&1
 			if [ $? != 0 ]; then
+				rm -rf "${TMP_TARGET}"
+				cat ${TMPLOG} | egrep -v '^Added incremental |^Ignoring incremental|^Import of|^Deleting |^Processed'
+				rm "${TMPLOG}"
 				fatal "Duplicity restore ${DUPLICITY_NAME} failed"
 			fi
 			
+			logger.sh INFO "Moving Status files to target"
+			find ${TMP_TARGET} -name \*.st -print -exec mv {} ${TARGET_DIRECTORY} \;
+			rm -rf "${TMP_TARGET}"
+
 			#Clean up the duplicity out put 
-			cat ${TMPLOG} | egrep -v '^Added incremental |^Ignoring incremental|^Import of|^Deleting |^Processed'
+			cat ${TMPLOG} | egrep -v '^Added incremental |^Ignoring incremental|^Import of|^Deleting |^Processed'; rm $TMPLOG
 		done
 elif [ "$DUPTYPE" == "clean" ]; then
 		#run cleanup and delete old backups
@@ -210,6 +216,7 @@ else
 fi
 
 rm $pidfile
+rm $TMPLOG
 
 logger.sh INFO "Duplicity completed"
 exit 0
