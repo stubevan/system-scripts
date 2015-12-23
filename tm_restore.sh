@@ -1,14 +1,13 @@
 #!/bin/bash
 
-# Recover syncstatus files for directories rchived remotely
-# The actions are determined by the hostname
+# Recover syncstatus files for directories archived by Time Machine
 
 
 . "$HOME/.bash_profile"
 DEBUG=0
 PRODUCTION=0
 EXEC_NAME=$0
-HOST=$( hostname | cut -d. -f1 | awk '{print tolower($0)}')
+HOST=$( hostname | cut -d. -f1 | awk '{print tolower($0)}' | sed "s/-[0-9]$//" ) 
 CONFIG_FILE="NOT SET"
 
 # shellcheck disable=SC2086
@@ -22,7 +21,7 @@ fatal() {
 }
 
 usage() {
-    echo "Usage: $EXEC_NAME -s config_file -d -p "
+    echo "Usage: $EXEC_NAME -c config_file -d -p "
     echo "	If no file system specified all entries in $CONFIG_FILE will be processed"
     echo "	If no no action and no file system specified then mount all"
     exit 1
@@ -64,9 +63,9 @@ TOP_PID=$$
 
 
 # Parse single-letter options
-while getopts dps: opt; do
+while getopts dpc: opt; do
     case "$opt" in
-        s)    SOURCE_FILE="$OPTARG"
+        c)    SOURCE_FILE="$OPTARG"
               ;;
         d)    DEBUG=1
               ;;
@@ -102,27 +101,37 @@ cat $SOURCE_FILE | while read line
 do
 	logger.sh INFO "processing -> $line"
 	source_dir=$(echo $line | awk -F, '{print $1}')
-	restore_dir=$(echo $line | awk -F, '{print $2}')
+	restore_target=$(echo $line | awk -F, '{print $2}')
 
 	if [ ! -d "$restore_dir" ]; then
-		logger.sh INFO "Creating restore base -> $restore_dir"
-		mkdir -p "$restore_dir"
+		logger.sh INFO "Creating restore base -> $restore_target"
+		mkdir -p "$restore_target"
 	fi
 
-	restore_target="$restore_dir/.syncstatus"
-	if [ -d "$restore_target" ]; then
-		rm -r "$restore_target"
+	if [ ! -d "/tmp/$$" ]; then
+		mkdir /tmp/$$
+	fi
+
+	restore_dir="/tmp/$$/.syncstatus"
+	if [ -d "$restore_dir" ]; then
+		rm -r "$restore_dir"
 	fi
 
 	restore_vol="$(gettmvol $source_dir)"
 	restore_source="$LATEST_BACKUP/$restore_vol/.syncstatus"
-	restore_command="tmutil restore \"$restore_source\" \"$restore_target\""
+	restore_command="tmutil restore \"$restore_source\" \"$restore_dir\""
 	logger.sh INFO "Executing restore -> $restore_command"
 	if [ "$DEBUG" -eq 0 ]; then
 		eval "$restore_command"
 		if [ $? != 0 ]; then
 			fatal "Time Machine restore failed"
 		fi
+
+		# Now copy the files into place - done this way to avoid the status
+		# files disappearing
+		echo cp -Rp "${restore_dir}/" "${restore_target}"
+		cp -Rp "${restore_dir}/" "${restore_target}"
+		rm -rf "{$restore_dir}"
 	fi
 done
 
