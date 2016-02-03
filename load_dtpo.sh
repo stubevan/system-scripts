@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # load the specified document into DTPO
 # The Group to be loaded into is specfied by the relative path from LOAD_BASE
@@ -9,11 +9,9 @@
 # The directory can contain a file call DTPO_Settings
 # This can override the defaults with contents DTPO_DATABASE= or TAGS=
 #
-# Redirect our output for debugging purposes
-exec >> /Users/stu/Logs/`date +%Y%m%d`-loadDTPO.log 2>&1
+. badger_setenv.sh $0
 
-echo
-echo "loadDTPO -> $*"
+logger.sh INFO "loadDTPO -> $*"
 
 ORPHANS="$HOME/Documents/Time For Action/"
 
