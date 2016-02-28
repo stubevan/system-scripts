@@ -5,21 +5,21 @@
 #    SyncStatus
 # 3) Keep the archives clean
 
-
-. $HOME/.bash_profile
+# Setenv prog has to be in the same directory the script is run from
+rundir=$(dirname $0)
+. ${rundir}/badger_setenv.sh $0
 
 ulimit -n 1024
+
 DEBUG=0
-PRODUCTION=0
-EXEC_NAME=$0
-HOST=$( hostname | cut -d. -f1 )
+
 DUPLICITY_ATTRIBUTES="/usr/local/bin/duplicity "
-STATS_FILE="${HOME}/Dropbox/Backups/backupstats.csv"
+EXCLUDES_FILE="/usr/local/etc/duplicity.excludes"
+
 SYNCSTATUSFILE=".syncstatus"
 SOURCE_DIRECTORIES=""
 TARGET_HOST=$(hostname -f | awk '{print tolower($0)}' )
-EXCLUDES_FILE="/usr/local/etc/duplicity.excludes"
-TMPLOG="/tmp/duplicity.$$.log"
+
 BACKUPS_TO_KEEP=3
 DRYRUN=""
 DUPTYPE=""
@@ -31,7 +31,7 @@ fatal() {
 }
 
 usage() {
-    echo "Usage: $EXEC_NAME "
+    echo "Usage: $0 "
     exit 1
 }
 
@@ -65,15 +65,14 @@ backupType() {
 #-----------------------------------------------
 
 # Parse single-letter options
-while getopts F:t:dpnT:k:N:s: opt; do
+while getopts F:t:dpnT:k:N:s:B: opt; do
     case "$opt" in
+        B) BACKUP_BASE="$OPTARG"
+           ;;
         d) DEBUG=1
            ;;
         t) TARGET="$OPTARG"
            ;;
-        p) PRODUCTION=1
-    	   exec >> $LOGFILE 2>&1
-		   ;;
 		F) FULL_BACKUPS="$OPTARG"
            ;;
 		n) DRYRUN="--dry-run"
@@ -83,7 +82,6 @@ while getopts F:t:dpnT:k:N:s: opt; do
 		k) DUPLICITY_KEY="$OPTARG"
            ;;
 		N) DUPLICITY_NAME="$OPTARG"
-		   LOGFILE=$(/usr/local/bin/getlogfilename.sh "$0" | sed "s/.log$/.${DUPLICITY_NAME}.log/" )
            ;;
 		s) SOURCE_DIRECTORIES="$OPTARG"
            ;;
@@ -112,25 +110,16 @@ if [ "${DUPTYPE}" == "backup" -a "${FULL_BACKUPS}" == "" ]; then
 	fatal "Must specifiy when full backups done"
 fi
 
+if [ "${BACKUP_BASE}" == "" ]; then
+	BACKUP_BASE=${HOME}
+fi
+
 DESTINATION="$(echo $TARGET | sed 's,.*//\(.*\)//.*,\1,' )"
 RESTORE_DIRECTORY="${HOME}/Local/SyncStatus/${TARGET_HOST}/${DESTINATION}"
-
-# Check we're not aready running
-pidfile=/var/tmp/bn-duplicity.${DUPLICITY_NAME}.pid
-
-if [ -f $pidfile ]; then
-    pid=`cat $pidfile`
-    kill -0 $pid 2> /dev/null
-    if [ $? == 0 ]; then
-        # backups running elsewhere
-        fatal "$0 ${DUPLICITY_NAME} already running - $$"
-    fi
-fi
 
 # get the gpg password
 export PASSPHRASE=$( security find-generic-password -a stu -s GPG_KEY -w )
 
-printf "%d" $$ > $pidfile
 if [ "$DUPTYPE" == "backup" ]; then
 		# Run the tarsnap backup
 		archive="$( date +%Y%m%d.%H%M ).MrBadger"
@@ -146,20 +135,23 @@ if [ "$DUPTYPE" == "backup" ]; then
 		IFS=$','
 		for dir in ${SOURCE_DIRECTORIES}
 		do
-			INCLUDE_DIRS=" --include ${HOME}/${dir} ${INCLUDE_DIRS}"
+			INCLUDE_DIRS=" --include ${BACKUP_BASE}/${dir} ${INCLUDE_DIRS}"
 		done
 		IFS=$OLD_IFS
 
-		duplicity_command="${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} -v5 --exclude-filelist ${EXCLUDES_FILE} ${INCLUDE_DIRS} --exclude '**' $(backupType $FULL_BACKUPS) ${HOME}/ ${TARGET} > ${TMPLOG} 2>&1"
+		full_or_inc=$(backupType $FULL_BACKUPS)
+		logger.sh INFO "Backup Type -> $full_or_inc, fullbackupmonth -> $FULL_BACKUPS"
+
+		duplicity_command="${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} -v5 --exclude-filelist ${EXCLUDES_FILE} ${INCLUDE_DIRS} --exclude '**' $full_or_inc ${BACKUP_BASE}/ ${TARGET} > ${TMPFILE1} 2>&1"
 
 		# Run the backups
 		logger.sh DEBUG "Backup command -> $duplicity_command"
 		eval $duplicity_command
-		if [ $? != 0 ]; then
-		    cat $TMPLOG; rm $TMPLOG
+		x=$?
+		cat $TMPFILE1
+		if [ $x != 0 ]; then
 			fatal "Duplicity backup ${DUPLICITY_NAME} failed"
 		fi
-		cat $TMPLOG; rm $TMPLOG
 
 elif [ "$DUPTYPE" == "restore" ]; then
 
@@ -169,25 +161,29 @@ elif [ "$DUPTYPE" == "restore" ]; then
 		IFS=$','
 		for dir in ${SOURCE_DIRECTORIES}
 		do
-			#dir=$(basename "$dir")
-			TARGET_DIRECTORY=${RESTORE_DIRECTORY}/${dir}
+			logger.sh INFO "Processing -> ${dir}"
+			TARGET_DIRECTORY=${RESTORE_DIRECTORY}/$(basename ${dir})/${SYNCSTATUSFILE}
+			logger.sh INFO "Restoring ${dir} to -> $TARGET_DIRECTORY"
+
+			# Do a paranoia check that its not already a regular file - have seen such weridness in the past
+			if [ -f ${TARGET_DIRECTORY} ]; then
+				logger.sh INFO "Cleaning regular file in target directory location"
+				rm -f ${TARGET_DIRECTORY}
+			fi
+
 			if [ ! -d ${TARGET_DIRECTORY} ]; then
 				logger.sh INFO "Creating -> ${TARGET_DIRECTORY}"
 				mkdir -p ${TARGET_DIRECTORY}
 			fi
 
-			TARGET_DIRECTORY=${RESTORE_DIRECTORY}/${dir}/${SYNCSTATUSFILE}
-			logger.sh INFO "Restoring ${dir} to -> $TARGET_DIRECTORY"
-
 			TMP_TARGET="/tmp/${DUPLICITY_NAME}"
 			mkdir "${TMP_TARGET}"
 			restore_command="${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} -v5 --file-to-restore ${dir}/.syncstatus ${TARGET} ${TMP_TARGET}"
 			logger.sh DEBUG "using -> $restore_command"
-			eval "$restore_command" > ${TMPLOG} 2>&1
+			eval "$restore_command" > ${TMPFILE1} 2>&1
 			if [ $? != 0 ]; then
 				rm -rf "${TMP_TARGET}"
-				cat ${TMPLOG} | egrep -v '^Added incremental |^Ignoring incremental|^Import of|^Deleting |^Processed'
-				rm "${TMPLOG}"
+				cat ${TMPFILE1} | egrep -v '^Added incremental |^Ignoring incremental|^Import of|^Deleting |^Processed'
 				fatal "Duplicity restore ${DUPLICITY_NAME} failed"
 			fi
 			
@@ -196,11 +192,10 @@ elif [ "$DUPTYPE" == "restore" ]; then
 			rm -rf "${TMP_TARGET}"
 
 			#Clean up the duplicity out put 
-			cat ${TMPLOG} | egrep -v '^Added incremental |^Ignoring incremental|^Import of|^Deleting |^Processed'; rm $TMPLOG
+			cat ${TMPFILE1} | egrep -v '^Added incremental |^Ignoring incremental|^Import of|^Deleting |^Processed'
 		done
 elif [ "$DUPTYPE" == "clean" ]; then
 		#run cleanup and delete old backups
-		logger INFO "Cleaning up"
 		logger.sh INFO "Cleanups"
 		eval ${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} remove-all-but-n-full ${BACKUPS_TO_KEEP} --force ${TARGET}
 		if [ $? != 0 ]; then
@@ -214,9 +209,6 @@ elif [ "$DUPTYPE" == "clean" ]; then
 else 
 	fatal "Invalid backup type -> ${DUPTYPE}"
 fi
-
-rm $pidfile
-rm $TMPLOG
 
 logger.sh INFO "Duplicity completed"
 exit 0
