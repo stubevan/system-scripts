@@ -6,20 +6,22 @@
 # 3) Keep the archives clean
 
 
-. $HOME/.bash_profile
+# Setenv prog has to be in the same directory the script is run from
+rundir=$(dirname $0)
+. ${rundir}/badger_setenv.sh $0
+
 DEBUG=0
-PRODUCTION=0
-EXEC_NAME=$0
 HOST=$( hostname -f | tr '[:upper:]' '[:lower:]' )
+
 TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile ${HOME}/etc/tarsnap.key --cachedir ${HOME}/.tarsnap"
-STATS_FILE=${HOME}/Dropbox/Backups/Stats/backupstats.csv
-SYNCSTATUSFILE=".syncstatus"
-SOURCE_DIRECTORIES="dev etc Documents Dropbox Local/DTPO"
-EXCLUDES_FILE="$HOME/etc/tarsnap.excludes"
-TMPLOG="/tmp/tarsnap.$$.log"
-RESTORE_DIRECTORY="${HOME}/Local/SyncStatus/$HOST/tarsnap"
-LOGFILE=$(getlogfilename.sh "$0")
 RUNOPTS=""
+
+SYNCSTATUSFILE=".syncstatus"
+SOURCE_DIRECTORIES="home-RAID/stu/dev home-RAID/stu/etc Boxcryptor/Documents home-RAID/stu/Dropbox Boxcryptor/DTPO"
+
+EXCLUDES_FILE="/usr/local/etc/tarsnap.excludes"
+RESTORE_DIRECTORY="${HOME}/Local/SyncStatus/$HOST/tarsnap"
+
 RESTORE=""
 
 # Helper methods
@@ -29,35 +31,20 @@ fatal() {
 }
 
 usage() {
-    echo "Usage: $EXEC_NAME "
+    echo "Usage: $0 "
     exit 1
 }
 
 #--------------- MAIN -----------------------
-# Check we're not aready running
-pidfile=/var/tmp/bn-tarsnap.pid
-
-if [ -f $pidfile ]; then
-    pid=`cat $pidfile`
-    kill -0 $pid 2> /dev/null
-    if [ $? == 0 ]; then
-        # backups running elsewhere
-        fatal "$0 already running - $$"
-    fi
-fi
-
-printf "%d" $$ > $pidfile
 
 #-----------------------------------------------
 # Option parsing
 #-----------------------------------------------
 
 # Parse single-letter options
-while getopts dpnr opt; do
+while getopts dnr opt; do
     case "$opt" in
         d)    DEBUG=1
-              ;;
-        p)    PRODUCTION=1
               ;;
         n)    NORUN=1
 			  RUNOPTS="--dry-run"
@@ -69,11 +56,6 @@ while getopts dpnr opt; do
     esac
 done
 
-# if not debugging then redirect all subsequent output
-if [ $PRODUCTION == 1 ]; then
-    exec >> $LOGFILE 2>&1
-fi
-
 if [ "${RESTORE}" == "" ]; then
 		# Run the tarsnap backup
 		archive="$( date +%Y%m%d.%H%M ).${HOST}"
@@ -82,11 +64,11 @@ if [ "${RESTORE}" == "" ]; then
 
 		datestamp=$( date +%Y%m%d.%H%M )
 
-		tarsnap_backup="${TARSNAP_ATTRIBUTES} ${RUNOPTS} --checkpoint-bytes 10485760 --print-stats -v -c -f ${archive} -X ${EXCLUDES_FILE} -C ${HOME} ${SOURCE_DIRECTORIES} > ${TMPLOG} 2>&1"
+		tarsnap_backup="${TARSNAP_ATTRIBUTES} ${RUNOPTS} --checkpoint-bytes 10485760 --print-stats -v -c -f ${archive} -X ${EXCLUDES_FILE} -C /Volumes ${SOURCE_DIRECTORIES} > ${TMPFILE1} 2>&1"
 		logger.sh DEBUG "Backup command -> $tarsnap_backup"
 		eval $tarsnap_backup
 
-		cat $TMPLOG; rm -f $TMPLOG
+		cat $TMPFILE1
 		logger.sh INFO "Backup completed"
 else
 		#Now try and extract the file backout so that SyncStatus can check it
@@ -117,8 +99,5 @@ else
 		)
 		logger.sh INFO "Restore completed"
 fi
-
-# Clean Up
-rm $pidfile
 
 exit 0

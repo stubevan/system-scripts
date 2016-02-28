@@ -2,16 +2,14 @@
 
 # Extract any errors from the latest chrono sync log
 
-. "$HOME/.bash_profile"
+. badger_setenv.sh $0
+
 DEBUG=0
 PRODUCTION=0
 EXEC_NAME=$0
 LOGDIR=/usr/local/log
 HOST=$( hostname | cut -d. -f1 | awk '{print tolower($0)}' | sed "s/-[0-9]$//" ) 
 CONFIG_FILE="NOT SET"
-
-# shellcheck disable=SC2086
-LOGFILE=$(getlogfilename.sh "$0")
 
 # Helper methods
 fatal() {
@@ -43,11 +41,6 @@ while getopts dl: opt; do
               ;;
     esac
 done
-
-# if not debugging then redirect all subsequent output
-if [ ${DEBUG} -eq  0 ]; then
-    exec >> "$LOGFILE" 2>&1
-fi
 
 if [ "x${IPFILE}" == "x" ]; then
 	IPFILE=$(ls ${LOGDIR}/*-ChronoSync-* | tail -1 )

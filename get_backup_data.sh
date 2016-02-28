@@ -10,15 +10,13 @@
 #	-	If not run before then rturn 0
 
 
-. $HOME/.bash_profile
+. badger_setenv.sh $0
 
 set -e
 DEBUG=0
 PRODUCTION=0
-EXEC_NAME=$0
 DRYRUN=""
 CACHE_BASE=${HOME}/.cache/backupstats
-TMP_FILE=/tmp/bs.$$
 if [ ! -d ${CACHE_BASE} ]; then
 	mkdir -p ${CACHE_BASE}
 fi
@@ -38,15 +36,12 @@ print_data ()
 
 LOGFILE=$(/usr/local/bin/getlogfilename.sh "$0" )
 # Parse single-letter options
-while getopts dpf:t: opt; do
+while getopts df:t: opt; do
     case "$opt" in
         d) DEBUG=1
            ;;
         t) BACKUP_TYPE="$OPTARG"
            ;;
-        p) PRODUCTION=1
-    	   exec > $LOGFILE 2>&1
-		   ;;
 		f) BACKUP_LOGFILE="$OPTARG"
            ;;
         '?')  logger.sh FATAL "invalid option $OPTARG."
@@ -106,27 +101,27 @@ fi
 if [ ${BACKUP_TYPE} == 'rsync' ]; then
 	awk ' /DEBUG: Rsync backup -> rsync/ { start_time=$1; } \
 		  /^Total file size:/				  { backup_size=$4; } \
-		  END { print start_time, backup_size; }' ${LATEST_LOGFILE} > $TMP_FILE 
+		  END { print start_time, backup_size; }' ${LATEST_LOGFILE} > $TMPFILE1 
 
-	start_time=$( awk '{print $1;}' $TMP_FILE )
-	backup_size=$( awk '{print $2;}' $TMP_FILE )
+	start_time=$( awk '{print $1;}' $TMPFILE1 )
+	backup_size=$( awk '{print $2;}' $TMPFILE1 )
 	backup_start=$(/bin/date -j -f %Y%m%d:%H%M%S ${start_time} +%s)
 
 elif [ ${BACKUP_TYPE} == 'duplicity' ]; then
 	awk '/^StartTime/	{ backup_start=$2; } \
 		 /^SourceFileSize/ { backup_size=$2; } \
-		 END			{ printf "%d %d", backup_start, backup_size; }' ${LATEST_LOGFILE} > $TMP_FILE
+		 END			{ printf "%d %d", backup_start, backup_size; }' ${LATEST_LOGFILE} > $TMPFILE1
 
-	backup_start=$( awk '{print $1;}' $TMP_FILE )
-	backup_size=$( awk '{print $2;}' $TMP_FILE )
+	backup_start=$( awk '{print $1;}' $TMPFILE1 )
+	backup_size=$( awk '{print $2;}' $TMPFILE1 )
 
 elif [ ${BACKUP_TYPE} == 'tarsnap' ]; then
 	awk ' /INFO: tarsnap backup of -> / { start_time=$1; } \
 		  /^  \(unique data\)/				  { backup_size=$4; } \
-		  END { print start_time, backup_size; }' ${LATEST_LOGFILE} > $TMP_FILE 
+		  END { print start_time, backup_size; }' ${LATEST_LOGFILE} > $TMPFILE1 
 
-	start_time=$( awk '{print $1;}' $TMP_FILE )
-	backup_size=$( awk '{print $2;}' $TMP_FILE )
+	start_time=$( awk '{print $1;}' $TMPFILE1 )
+	backup_size=$( awk '{print $2;}' $TMPFILE1 )
 	backup_start=$(/bin/date -j -f %Y%m%d:%H%M%S ${start_time} +%s)
 else
 	logger.sh FATAL "Bad Backup Type -> ${BACKUP_TYPE}"
@@ -140,5 +135,4 @@ fi
 
 print_data $backup_start $backup_end $run_time $backup_size $backup_delta
 
-rm -f $TMP_FILE
 exit 0

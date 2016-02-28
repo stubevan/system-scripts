@@ -1,10 +1,8 @@
 #!/bin/bash
 # Update Homebrew and associated packages
 
-PATH=/usr/local/bin:$PATH:/usr/local/sbin
-Logfile=$(getlogfilename.sh "$0")
-
-exec >> $Logfile 2>&1
+# Set up the environment and the logging
+. /usr/local/bin/badger_setenv.sh $0
 
 logger.sh INFO "Running Brew Update"
 

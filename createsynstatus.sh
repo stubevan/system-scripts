@@ -1,19 +1,18 @@
 #!/bin/bash
 
-if [ -f $HOME/.bashrc ]; then
-	source $HOME/.bashrc
-fi
+# Create the syncstatus files used to monitor backups and synchronisations
 
+# Setenv prog has to be in the same directory the script is run from
+rundir=$(dirname $0)
+. ${rundir}/badger_setenv.sh $0
 
-exec >> $(getlogfilename.sh "$0") 2>&1
-
-echo "`date`: Reading from $1"
+logger.sh INFO "Reading from $1"
 
 IFS=$'\n'
 for file in `cat $1`
 do
-	echo "`date`: running syncstatus.sh for $file"
+	logger.sh INFO "running syncstatus.sh for $file"
 	syncstatus.sh -d "$file"
 done
 
-echo "`date`: Completed"
+logger.sh INFO "Completed"

@@ -1,22 +1,17 @@
 #!/bin/bash 
 # Run passive checke define in the specified config file and then send using nrdp
 
-if [ -f $HOME/.bashrc ]; then
-	source $HOME/.bashrc
-fi
-
-EXECUTE=0
+. badger_setenv.sh $0
 
 usage() {
 	echo "Usage: -h hostname -t token -u url -c config-file -C check_script"
 	exit 1
 }
 
-LOGFILE=$( getlogfilename.sh "$0" )
 CHECK_SCRIPT=""
 
 # Parse single-letter options
-while getopts t:u:c:h:pC: opt; do
+while getopts t:u:c:h:C: opt; do
     case "$opt" in
         h) LOCALHOST="$OPTARG"
            ;;
@@ -28,12 +23,7 @@ while getopts t:u:c:h:pC: opt; do
            ;;
         C) CHECK_SCRIPT="$OPTARG"
            ;;
-        p) exec >> "${LOGFILE}" 2>&1
-           ;;
-    esac
 done
-
-logger.sh INFO "Starting"
 
 if [ "x${LOCALHOST}" == "x" ]; then
 	logger.sh FATAL "Must specify a hostname"; exit 1
@@ -52,8 +42,6 @@ if [ "x${TARGET_URL}" == "x" ]; then
 fi
 
 IFS=$'\n'
-RETFILE=/tmp/nrdp1.$$
-TMPFILE=/tmp/nrdp.$$
 
 # Run the check script to see whether we go or not
 if [ "x$CHECK_SCRIPT" != "x" ]; then
@@ -71,22 +59,21 @@ fi
 logger.sh INFO "Running Checks"
 
 # Start with the host check
-echo "${LOCALHOST}	OK	`uptime`" > ${RETFILE}
+echo "${LOCALHOST}	OK	`uptime`" > ${TMPFILE1}
 for sourceline in $(cat ${CONFIG_FILE} )
 do
 	service=$( echo $sourceline | awk -F! '{print $1}' )
 	command=$( echo $sourceline | awk -F! '{print $2}' )
 
 	# execute the command and capture the results
-	eval "${command}" > $TMPFILE
+	eval "${command}" > $TMPFILE2
 	rc=$?
-	retline=$( head -1 $TMPFILE )
+	retline=$( head -1 $TMPFILE2 )
 
-	echo "${LOCALHOST}	${service}	${rc}	${retline}" >> $RETFILE
+	echo "${LOCALHOST}	${service}	${rc}	${retline}" >> $TMPFILE1
 done
 
-cat ${RETFILE}
-cat ${RETFILE} | send_nrdp.sh -u "${TARGET_URL}" -t "${TOKEN}"
-rm -rf ${RETFILE} ${TMPFILE}
+cat ${TMPFILE1}
+cat ${TMPFILE1} | send_nrdp.sh -u "${TARGET_URL}" -t "${TOKEN}"
 logger.sh INFO "Checks Completed"
 exit 0
