@@ -10,7 +10,9 @@
 #	-	If not run before then rturn 0
 
 
-. badger_setenv.sh $0
+# Setenv prog has to be in the same directory the script is run from
+rundir=$(dirname $0)
+. ${rundir}/badger_setenv.sh $0
 
 set -e
 DEBUG=0

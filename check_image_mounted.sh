@@ -4,8 +4,9 @@
 # will need sudo access for specific commands and also key chain access
 #
 
-# Set up the environment and the logging
-. /usr/local/bin/badger_setenv.sh $0
+# Setenv prog has to be in the same directory the script is run from
+rundir=$(dirname $0)
+. ${rundir}/badger_setenv.sh $0
 
 EXECUTE=0
 set -e

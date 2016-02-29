@@ -1,7 +1,9 @@
 #!/bin/bash 
 # Run passive checke define in the specified config file and then send using nrdp
 
-. badger_setenv.sh $0
+# Setenv prog has to be in the same directory the script is run from
+rundir=$(dirname $0)
+. ${rundir}/badger_setenv.sh $0
 
 usage() {
 	echo "Usage: -h hostname -t token -u url -c config-file -C check_script"
