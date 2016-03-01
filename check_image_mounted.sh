@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 # 
 # check that specific image is correctly mounted
 # will need sudo access for specific commands and also key chain access

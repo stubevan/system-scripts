@@ -4,18 +4,18 @@
 # and also to ensure that logging is appropriately setup
 
 ME=badger-setenv.sh
-PATH=/usr/local/bin:/usr/local/sbin:$PATH
+PATH=/usr/local/opt/coreutils/libexec/gnubin:/usr/local/bin:/usr/local/sbin:$PATH
 export PARENT_PID=$$
 
 # Check that key executables are there
-which logger.sh > /dev/null 2>&1
+type logger.sh > /dev/null 2>&1
 if [ $? != 0 ]; then
 	# We're a bit stuck so can only go to stderr
 	echo "FATAL - Can't find logger.sh" >&2
 	exit 1
 fi
 
-which getlogfilename.sh > /dev/null 2>&1
+type getlogfilename.sh > /dev/null 2>&1
 if [ $? != 0 ]; then
 	# We're a bit stuck so can only go to stderr
 	logger.sh FATAL "getlogfilename.sh not in PATH -> $PATH"

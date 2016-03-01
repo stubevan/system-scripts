@@ -75,6 +75,7 @@ logger.sh INFO "Starting tm_restore"
 LATEST_BACKUP="$(tmutil latestbackup)"
 logger.sh INFO "Latest Backup is -> ${LATEST_BACKUP}"
 
+IFS=$'\n'
 cat $SOURCE_FILE | while read line
 do
 	logger.sh INFO "processing -> $line"
@@ -110,7 +111,7 @@ do
 		eval "$restore_command"
 		if [ $? != 0 ]; then
 			logger.sh ALERT "Time Machine restore failed for -> ${restore_source}"
-			continu
+			continue
 		fi
 		# Now copy the files into place - done this way to avoid the status
 		# files disappearing
