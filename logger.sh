@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Generate an appropriate entry for a logfile
 # for FATAL errors call pushover if nt running from the command line
