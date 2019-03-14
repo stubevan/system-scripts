@@ -76,16 +76,6 @@ IFS=$'\n'
 cat $SOURCE_FILE | while read line
 do
 	logger.sh INFO "processing -> $line"
-<<<<<<< HEAD
-	source_dir=$(echo $line | awk -F, '{print $1}')
-
-	if [ ! -d "${source_dir}" ]; then
-		logger.sh ALERT "Invalid source dorectory -> ${source_dir}"
-		continue
-	fi
-
-	restore_target=$(echo $line | awk -F, '{print $2}')
-=======
 	source_dir=$(echo "${line}" | awk -F, '{print $1}')
 
 	if [ ! -d "${source_dir}" ]; then
@@ -94,33 +84,23 @@ do
 	fi
 
 	restore_target=$(echo "${line}" | awk -F, '{print $2}')
->>>>>>> Initial-Code-Drop
 
 	if [ ! -d "${restore_dir}" ]; then
 		logger.sh INFO "Creating restore base -> $restore_target"
 		mkdir -p "$restore_target"
 	fi
 
-<<<<<<< HEAD
-	if [ ! -d "$TMPFILE1" ]; then
-		mkdir "$TMPFILE1"
-	fi
-
-	restore_dir="$TMPFILE1/.syncstatus"
-=======
 	if [ ! -d "${TMPFILE1}" ]; then
 		mkdir ${TMPFILE1}
 	fi
 
 	restore_dir="${TMPFILE1}/.syncstatus"
->>>>>>> Initial-Code-Drop
 	if [ -d "$restore_dir" ]; then
 		rm -rf "$restore_dir"
 	fi
 
 	restore_vol="$(gettmvol $source_dir)"
 	restore_source="$LATEST_BACKUP/$restore_vol/.syncstatus"
-
 	restore_command="tmutil restore \"$restore_source\" \"$restore_dir\""
 
 	logger.sh INFO "Executing restore -> $restore_command"

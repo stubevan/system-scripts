@@ -64,11 +64,7 @@ if [ "${RESTORE}" == "" ]; then
 
 		datestamp=$( date +%Y%m%d.%H%M )
 
-<<<<<<< HEAD
-		tarsnap_backup="${TARSNAP_ATTRIBUTES} ${RUNOPTS} --checkpoint-bytes 10485760 --print-stats -v -c -f ${archive} -X ${EXCLUDES_FILE} -C /Volumes ${SOURCE_DIRECTORIES} > ${TMPFILE1} 2>&1"
-=======
 		tarsnap_backup="${TARSNAP_ATTRIBUTES} ${RUNOPTS} --checkpoint-bytes 10485760 --print-stats -v -c -f ${archive} -X ${EXCLUDES_FILE} -C /Users/stu ${SOURCE_DIRECTORIES} > ${TMPFILE1} 2>&1"
->>>>>>> Initial-Code-Drop
 		logger.sh DEBUG "Backup command -> $tarsnap_backup"
 		eval $tarsnap_backup
 
