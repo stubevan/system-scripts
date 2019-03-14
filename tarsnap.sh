@@ -17,7 +17,7 @@ TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile ${HOME}/etc/tarsnap.key --c
 RUNOPTS=""
 
 SYNCSTATUSFILE=".syncstatus"
-SOURCE_DIRECTORIES="home-RAID/stu/dev home-RAID/stu/etc Boxcryptor/Documents home-RAID/stu/Dropbox Boxcryptor/DTPO"
+SOURCE_DIRECTORIES="Documents/Filing.nosync"
 
 EXCLUDES_FILE="/usr/local/etc/tarsnap.excludes"
 RESTORE_DIRECTORY="${HOME}/Local/SyncStatus/$HOST/tarsnap"
@@ -64,7 +64,11 @@ if [ "${RESTORE}" == "" ]; then
 
 		datestamp=$( date +%Y%m%d.%H%M )
 
+<<<<<<< HEAD
 		tarsnap_backup="${TARSNAP_ATTRIBUTES} ${RUNOPTS} --checkpoint-bytes 10485760 --print-stats -v -c -f ${archive} -X ${EXCLUDES_FILE} -C /Volumes ${SOURCE_DIRECTORIES} > ${TMPFILE1} 2>&1"
+=======
+		tarsnap_backup="${TARSNAP_ATTRIBUTES} ${RUNOPTS} --checkpoint-bytes 10485760 --print-stats -v -c -f ${archive} -X ${EXCLUDES_FILE} -C /Users/stu ${SOURCE_DIRECTORIES} > ${TMPFILE1} 2>&1"
+>>>>>>> Initial-Code-Drop
 		logger.sh DEBUG "Backup command -> $tarsnap_backup"
 		eval $tarsnap_backup
 

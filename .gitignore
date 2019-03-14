@@ -17,6 +17,11 @@ xcuserdata
 # svn & cvs
 .svn
 CVS
+<<<<<<< HEAD
 time_machine.txt
+.linuxign
+.validfile
+=======
+>>>>>>> Initial-Code-Drop
 .linuxign
 .validfile

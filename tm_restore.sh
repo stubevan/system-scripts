@@ -63,22 +63,20 @@ if [ ! -f "${SOURCE_FILE}" ]; then
 	fatal "Config file not readable -> ${SOURCE_FILE}"
 fi
 
-# Dont try anything if the Time Machine Drive not mounted
-tm_check=$(df | grep -c 'Time Machine')
-if [ $tm_check == '0' ]; then
-	logger.sh INFO "Time machine Not Available - Quitting"
-	exit 0
-fi
-
 logger.sh INFO "Starting tm_restore"
 # Get list of time machine backups on this host and process them
 LATEST_BACKUP="$(tmutil latestbackup)"
+if [ ! $? = 0 ]; then
+	logger.sh INFO "Failed to get latest backup - Quitting"
+	exit 0
+fi
 logger.sh INFO "Latest Backup is -> ${LATEST_BACKUP}"
 
 IFS=$'\n'
 cat $SOURCE_FILE | while read line
 do
 	logger.sh INFO "processing -> $line"
+<<<<<<< HEAD
 	source_dir=$(echo $line | awk -F, '{print $1}')
 
 	if [ ! -d "${source_dir}" ]; then
@@ -87,17 +85,35 @@ do
 	fi
 
 	restore_target=$(echo $line | awk -F, '{print $2}')
+=======
+	source_dir=$(echo "${line}" | awk -F, '{print $1}')
 
-	if [ ! -d "$restore_dir" ]; then
+	if [ ! -d "${source_dir}" ]; then
+		logger.sh ALERT "Source directory does not exist -> ${source_dir}"
+		continue
+	fi
+
+	restore_target=$(echo "${line}" | awk -F, '{print $2}')
+>>>>>>> Initial-Code-Drop
+
+	if [ ! -d "${restore_dir}" ]; then
 		logger.sh INFO "Creating restore base -> $restore_target"
 		mkdir -p "$restore_target"
 	fi
 
+<<<<<<< HEAD
 	if [ ! -d "$TMPFILE1" ]; then
 		mkdir "$TMPFILE1"
 	fi
 
 	restore_dir="$TMPFILE1/.syncstatus"
+=======
+	if [ ! -d "${TMPFILE1}" ]; then
+		mkdir ${TMPFILE1}
+	fi
+
+	restore_dir="${TMPFILE1}/.syncstatus"
+>>>>>>> Initial-Code-Drop
 	if [ -d "$restore_dir" ]; then
 		rm -rf "$restore_dir"
 	fi
@@ -106,6 +122,7 @@ do
 	restore_source="$LATEST_BACKUP/$restore_vol/.syncstatus"
 
 	restore_command="tmutil restore \"$restore_source\" \"$restore_dir\""
+
 	logger.sh INFO "Executing restore -> $restore_command"
 	if [ "$DEBUG" -eq 0 ]; then
 		eval "$restore_command"
@@ -113,17 +130,13 @@ do
 			logger.sh ALERT "Time Machine restore failed for -> ${restore_source}"
 			continue
 		fi
-
 		# Now copy the files into place - done this way to avoid the status
 		# files disappearing
-		echo cp -Rp "${restore_dir}/" "${restore_target}"
+		logger.sh INFO "cp -Rp ${restore_dir}/ ${restore_target}"
 		cp -Rp "${restore_dir}/" "${restore_target}"
 		rm -rf "{$restore_dir}"
 	fi
 done
-
-# Clean Up
-rm "$pidfile"
 
 logger.sh INFO "Completed tm_restore"
 exit 0
