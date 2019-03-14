@@ -5,7 +5,7 @@ import time
 
 API_KEY='Yh3bheErZp43k49CahCqDb7xWeeX0k4D'
 RUNDECKSERVER = 'https://rundeck.romans-place.me.uk'
-RUNDECKPORT='443'
+RUNDECKPORT='4443'
 EXPIRE_DAYS = 20
 TODAY = int(round(time.time() * 1000))
 EXPIRE_MILISECONDS = EXPIRE_DAYS * 24 * 60 * 60 * 1000
@@ -48,7 +48,7 @@ def getJobIDs(jobsinfo_xml):
 def getExecutionsForAJob(job_id):
     url =  RUNDECKSERVER +':'+RUNDECKPORT+'/api/14/job/'+job_id+'/executions'
     headers = {'Content-Type': 'application/json','X-RunDeck-Auth-Token': API_KEY }
-    print 'get Executions for job -> ' + job_id + ' with url -> ' + url
+    print ('get Executions for job -> ' , job_id , ' with url -> ' , url)
     payload={'max': 20, }
     r = requests.get(url, params=payload,   headers=headers) #verify=False) #, params=payload)
     return r.text
@@ -62,14 +62,14 @@ def getExecutionDate(executionsinfo_xml):
             execution_id = execution.get('id')
             for date in execution.findall('date-ended'):
                 execution_date = date.get('unixtime')
-    	    execid_dates[execution_id] = execution_date
+            execid_dates[execution_id] = execution_date
     return execid_dates
        
 #API call to delete an execution by ID
 def deleteExecution(execution_id):
     url =  RUNDECKSERVER +':'+RUNDECKPORT+'/api/14/execution/'+str(execution_id)
     headers = {'Content-Type': 'application/json','X-RunDeck-Auth-Token': API_KEY }
-    print 'Deleting id -> ' + str(execution_id) + ', url -> ' + url
+    print ('Deleting id -> ' , str(execution_id) , ', url -> ' , url)
     r = requests.delete(url, headers=headers, verify=False)    
 
 def isOlderThanExpireDays(execution_date, today):
@@ -93,8 +93,8 @@ def checkDeletion(execid_dates):
 #         except Exception as e:
 #             print 'Got Exception -> Failed'
 
-for execution_id in range(1, 7377) :
+for execution_id in range(235870, 257564 ) :
     try :
         deleteExecution(execution_id)
     except Exception as e :
-        print 'Got Exception on ' + str(execution_id) + ' -> ' + str(e)
+        print ('Got Exception on ' , str(execution_id) , ' -> ' , str(e))

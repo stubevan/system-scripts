@@ -4,9 +4,9 @@
 # Second paramter is number of days to key
 # if older then delete
 
-if [ -f $HOME/.bashrc ]; then
-	source $HOME/.bashrc
-fi
+# Setenv prog has to be in the same directory the script is run from
+rundir=$(dirname $0)
+. ${rundir}/badger_setenv.sh $0
 
 EXECUTE=0
 set -e
@@ -32,13 +32,13 @@ while getopts ed:a: opt; do
 done
 
 if [ ! -d "$SOURCEDIRECTORY" ]; then
-	echo "Fatal: Invalid source directory -> $SOURCEDIRECTORY" >&2
+	logger.sh FATAL "Invalid source directory -> $SOURCEDIRECTORY" >&2
 	exit 1
 fi
 
 re='^[0-9]+$'
 if [[ ! "$DAYSTOKEEP" =~ $re ]] ; then
-	echo "Fatal: Days To Keep is not a number" >&2
+	logger.sh FATAL "Days To Keep is not a number" >&2
 	exit 1
 fi
 
@@ -50,15 +50,15 @@ do
 	if [[ "$dir" =~ $re ]] ; then
 		# How old is it
 		if [ `dirage $dir` -gt $DAYSTOKEEP ]; then
-			echo "Deleting $SOURCEDIRECTORY/$dir"
+			logger.sh INFO "Deleting $SOURCEDIRECTORY/$dir"
 			if [ $EXECUTE -eq 1 ]; then
 				rm -rf "$SOURCEDIRECTORY/$dir"
 			fi
 		else
-			echo "Keeping $SOURCEDIRECTORY/$dir"
+			logger.sh INFO "Keeping $SOURCEDIRECTORY/$dir"
 		fi
 	else
-		echo "$dir is not an archive directory"
+		logger.sh INFO "$dir is not an archive directory"
 	fi
 done
 

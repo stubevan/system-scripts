@@ -1,10 +1,9 @@
 #!/bin/bash
 # Update Homebrew and associated packages
 
-PATH=/usr/local/bin:$PATH:/usr/local/sbin
-Logfile=$(getlogfilename.sh "$0")
-
-exec >> $Logfile 2>&1
+# Setenv prog has to be in the same directory the script is run from
+rundir=$(dirname $0)
+. ${rundir}/badger_setenv.sh $0
 
 logger.sh INFO "Running Brew Update"
 
@@ -24,7 +23,7 @@ fi
 
 logger.sh ALERT "Upgrading brews -> ${outdated}"
 
-brew upgrade --cleanup
+brew upgrade
 
 # Check that it all worked
 outdated=$(brew outdated)
