@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/usr/local/bin/bash
 
 # Need directories in the format YYYYMMDD - if not then ignore them
 # Second paramter is number of days to key
@@ -42,6 +42,11 @@ if [[ ! "$DAYSTOKEEP" =~ $re ]] ; then
 	exit 1
 fi
 
+if [[ $EXECUTE -eq 0 ]]; then
+	logger.sh INFO "Dry Run Only"
+fi
+IFS=$'\n'
+
 for dir in `ls "$SOURCEDIRECTORY" `
 do
 	# Check its a date format
@@ -58,7 +63,7 @@ do
 			logger.sh INFO "Keeping $SOURCEDIRECTORY/$dir"
 		fi
 	else
-		logger.sh INFO "$dir is not an archive directory"
+		logger.sh INFO "Ignoring -> $dir"
 	fi
 done
 
