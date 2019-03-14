@@ -17,7 +17,7 @@ TARSNAP_ATTRIBUTES="/usr/local/bin/tarsnap --keyfile ${HOME}/etc/tarsnap.key --c
 RUNOPTS=""
 
 SYNCSTATUSFILE=".syncstatus"
-SOURCE_DIRECTORIES="home-RAID/stu/dev home-RAID/stu/etc Boxcryptor/Documents home-RAID/stu/Dropbox Boxcryptor/DTPO"
+SOURCE_DIRECTORIES="home-RAID/stu/dev home-RAID/stu/etc Secomba/stu/Boxcryptor/Documents home-RAID/stu/Dropbox Secomba/stu/Boxcryptor/DTPO"
 
 EXCLUDES_FILE="/usr/local/etc/tarsnap.excludes"
 RESTORE_DIRECTORY="${HOME}/Local/SyncStatus/$HOST/tarsnap"

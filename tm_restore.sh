@@ -63,30 +63,27 @@ if [ ! -f "${SOURCE_FILE}" ]; then
 	fatal "Config file not readable -> ${SOURCE_FILE}"
 fi
 
-# Dont try anything if the Time Machine Drive not mounted
-tm_check=$(df | grep -c 'Time Machine')
-if [ $tm_check == '0' ]; then
-	logger.sh INFO "Time machine Not Available - Quitting"
-	exit 0
-fi
-
 logger.sh INFO "Starting tm_restore"
 # Get list of time machine backups on this host and process them
 LATEST_BACKUP="$(tmutil latestbackup)"
+if [ ! $? = 0 ]; then
+	logger.sh INFO "Failed to get latest backup - Quitting"
+	exit 0
+fi
 logger.sh INFO "Latest Backup is -> ${LATEST_BACKUP}"
 
 IFS=$'\n'
 cat $SOURCE_FILE | while read line
 do
 	logger.sh INFO "processing -> $line"
-	source_dir=$(echo $line | awk -F, '{print $1}')
+	source_dir=$(echo "${line}" | awk -F, '{print $1}')
 
 	if [ ! -d "${source_dir}" ]; then
 		logger.sh ALERT "Source directory does not exist -> ${source_dir}"
 		continue
 	fi
 
-	restore_target=$(echo $line | awk -F, '{print $2}')
+	restore_target=$(echo "${line}" | awk -F, '{print $2}')
 
 	if [ ! -d "${restore_dir}" ]; then
 		logger.sh INFO "Creating restore base -> $restore_target"

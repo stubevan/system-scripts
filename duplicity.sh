@@ -116,6 +116,7 @@ fi
 
 DESTINATION="$(echo $TARGET | sed 's,.*//\(.*\)//.*,\1,' )"
 RESTORE_DIRECTORY="${HOME}/Local/SyncStatus/${TARGET_HOST}/${DESTINATION}"
+duplicitylog=$(getlogfilename.sh "duplicity.${DUPLICITY_NAME}"
 
 # get the gpg password
 export PASSPHRASE=$( security find-generic-password -a stu -s GPG_KEY -w )
@@ -142,14 +143,12 @@ if [ "$DUPTYPE" == "backup" ]; then
 		full_or_inc=$(backupType $FULL_BACKUPS)
 		logger.sh INFO "Backup Type -> $full_or_inc, fullbackupmonth -> $FULL_BACKUPS"
 
-		duplicity_command="${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} -v5 --exclude-filelist ${EXCLUDES_FILE} ${INCLUDE_DIRS} --exclude '**' $full_or_inc ${BACKUP_BASE}/ ${TARGET} > ${TMPFILE1} 2>&1"
+		duplicity_command="${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} -v5 --exclude-filelist ${EXCLUDES_FILE} ${INCLUDE_DIRS} --exclude '**' $full_or_inc ${BACKUP_BASE}/ ${TARGET} >> ${duplicitylog} 2>&1"
 
 		# Run the backups
 		logger.sh DEBUG "Backup command -> $duplicity_command"
 		eval $duplicity_command
-		x=$?
-		cat $TMPFILE1
-		if [ $x != 0 ]; then
+		if [ $? != 0 ]; then
 			fatal "Duplicity backup ${DUPLICITY_NAME} failed"
 		fi
 
@@ -180,28 +179,24 @@ elif [ "$DUPTYPE" == "restore" ]; then
 			mkdir "${TMP_TARGET}"
 			restore_command="${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} -v5 --file-to-restore ${dir}/.syncstatus ${TARGET} ${TMP_TARGET}"
 			logger.sh DEBUG "using -> $restore_command"
-			eval "$restore_command" > ${TMPFILE1} 2>&1
+			eval "$restore_command" >> ${duplicitylog} 2>&1
 			if [ $? != 0 ]; then
 				rm -rf "${TMP_TARGET}"
-				cat ${TMPFILE1} | egrep -v '^Added incremental |^Ignoring incremental|^Import of|^Deleting |^Processed'
 				fatal "Duplicity restore ${DUPLICITY_NAME} failed"
 			fi
 			
 			logger.sh INFO "Moving Status files to target"
 			find ${TMP_TARGET} -name \*.st -print -exec mv {} ${TARGET_DIRECTORY} \;
 			rm -rf "${TMP_TARGET}"
-
-			#Clean up the duplicity out put 
-			cat ${TMPFILE1} | egrep -v '^Added incremental |^Ignoring incremental|^Import of|^Deleting |^Processed'
 		done
 elif [ "$DUPTYPE" == "clean" ]; then
 		#run cleanup and delete old backups
 		logger.sh INFO "Cleanups"
-		eval ${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} remove-all-but-n-full ${BACKUPS_TO_KEEP} --force ${TARGET}
+		eval ${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} remove-all-but-n-full ${BACKUPS_TO_KEEP} --force ${TARGET} >> ${duplicitylog} 2>&1
 		if [ $? != 0 ]; then
 			fatal "Duplicity ${DUPLICITY_NAME} remove old backups failed"
 		fi
-		eval ${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} cleanup --force ${TARGET}
+		eval ${DUPLICITY_ATTRIBUTES} --sign-key ${DUPLICITY_KEY} --name ${DUPLICITY_NAME} --encrypt-key ${DUPLICITY_KEY} ${DRYRUN} cleanup --force ${TARGET} >> ${duplicitylog} 2>&1
 		if [ $? != 0 ]; then
 			fatal "Duplicity ${DUPLICITY_NAME} cleanup failed"
 		fi
