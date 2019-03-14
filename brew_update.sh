@@ -23,7 +23,7 @@ fi
 
 logger.sh ALERT "Upgrading brews -> ${outdated}"
 
-brew upgrade --cleanup
+brew upgrade
 
 # Check that it all worked
 outdated=$(brew outdated)

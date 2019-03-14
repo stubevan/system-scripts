@@ -1,27 +1,14 @@
-#!/bin/bash
+#!/bin/sh
 
 # Run rsyncs specified for this host
 # The actions are determined by the hostname
 
-# Need to set get unique name for this
-PARENT=$0
-while getopts :N: opt; do
-	case "$opt" in
-		N)	PARENT="$OPTARG"
-		;;
-	esac
-done
-
-set - $*
 
 # Setenv prog has to be in the same directory the script is run from
 rundir=$(dirname $0)
-. ${rundir}/badger_setenv.sh "$PARENT"
+. ${rundir}/badger_setenv.sh $0
 
-RSYNC_ATTRIBUTES="rsync -aiv --stats --backup --delete -e 'ssh'"
-
-echo $*
-exit 0
+RSYNC_ATTRIBUTES="rsync -aiv --stats --copy-links --backup --delete -e 'ssh'"
 
 # Helper methods
 fatal() {
