@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/local/bin/bash
 
 # 1) Run tarsnap backups
 # 2) Pull back the specified syncstatus directory for later validation by
