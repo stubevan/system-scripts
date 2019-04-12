@@ -1,0 +1,53 @@
+./1Password 7.app
+./Adobe Lightroom Classic CC/Adobe Lightroom Classic CC.app
+./Adobe Photoshop CC 2019/Adobe Photoshop CC 2019.app
+./Aegisub.app
+./Airy.app
+./Alfred 3.app
+./Anki.app
+./AnyList.app
+./AquaTerm.app
+./Arq.app
+./BackupLoupe.app
+./Bartender 2.app
+./BetterTouchTool.app
+./Boxcryptor.app
+./DB Browser for SQLite.app
+./DEVONagent.app
+./DEVONthink Pro.app
+./DaisyDisk.app
+./DeDRM.app
+./Delicious Library 3.app
+./DrCleaner.app
+./Dropbox.app
+./Dropzone 3.app
+./Firefox.app
+./Garmin Express.app
+./GitHub Desktop.app
+./Google Chrome.app
+./Google Earth Pro.app
+./HandBrake.app
+./HoudahSpot.app
+./Keyboard Maestro.app
+./Kindle.app
+./LaunchControl.app
+./LightPaper.app
+./Little Snitch Configuration.app
+./Loupedeck.app
+./MWeb.app
+./MacX Video Converter Pro.app
+./MakeMKV.app
+./Murus.app
+./MusicBrainz Picard.app
+./OmniFocus.app
+./Path Finder.app
+./Plex Media Player.app
+./Plexamp.app
+./ProtonMail Bridge.app
+./PyCharm.app
+./Remotix Agent.app
+./Softorino YouTube Converter 2.app
+./Sonos.app
+./Sublime Text.app
+./Tinderbox 7.app
+./VinylStudio.app

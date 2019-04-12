@@ -1,0 +1,53 @@
+App Store.app
+Automator.app
+Books.app
+Calculator.app
+Calendar.app
+Chess.app
+Contacts.app
+Dashboard.app
+Dictionary.app
+FaceTime.app
+Font Book.app
+Home.app
+Image Capture.app
+Launchpad.app
+Mail.app
+Maps.app
+Messages.app
+Mission Control.app
+News.app
+Notes.app
+Photo Booth.app
+Photos.app
+Preview.app
+QuickTime Player.app
+Reminders.app
+Safari.app
+Siri.app
+Stickies.app
+Stocks.app
+System Preferences.app
+TextEdit.app
+Time Machine.app
+Utilities/Activity Monitor.app
+Utilities/AirPort Utility.app
+Utilities/Audio MIDI Setup.app
+Utilities/Bluetooth Explorer.app
+Utilities/Bluetooth File Exchange.app
+Utilities/Boot Camp Assistant.app
+Utilities/ColorSync Utility.app
+Utilities/Console.app
+Utilities/Digital Color Meter.app
+Utilities/Disk Utility.app
+Utilities/Grapher.app
+Utilities/IORegistryExplorer.app
+Utilities/Keychain Access.app
+Utilities/Migration Assistant.app
+Utilities/Screenshot.app
+Utilities/Script Editor.app
+Utilities/System Information.app
+Utilities/Terminal.app
+Utilities/VoiceOver Utility.app
+VoiceMemos.app
+iTunes.app

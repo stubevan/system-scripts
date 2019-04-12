@@ -1,0 +1,2 @@
+Utilities/Adobe*
+Kindle.app

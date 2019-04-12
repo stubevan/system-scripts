@@ -1,0 +1,10 @@
+aquaterm|AquaTerm.app
+chronosync|ChronoSync.app
+devonthink-pro-office|DEVONthink Pro Office.app
+garmin-express|Garmin Express.app
+google-earth-pro|Google Earth Pro.app
+gpg-suite|GPG Keychain.app
+intel-power-gadget|Intel Power Gadget/Intel\(R\) Power Gadget.app
+little-snitch|Little Snitch Configuration.app
+virtualbox|VirtualBox.app
+xquartz|XQuartz.app
